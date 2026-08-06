@@ -57,6 +57,10 @@ struct DeviceConfig {
   uint8_t tempDecimals = 0;
   bool debugMode = false;
 
+  // Scheduled matrix power off/on. Each hour is -1 (disabled) or 0..23, minute 0..59.
+  int powerOffHour = -1, powerOffMinute = 0;
+  int powerOnHour = -1, powerOnMinute = 0;
+
   bool scriptingEnabled = true;
   int scriptLimit = 16;
   int scriptMaxBytes = 8192;

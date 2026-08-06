@@ -41,3 +41,15 @@ __pycache__/
 # Local Berry scripts (uploaded to the device, not part of the firmware)
 /Berry/
 pip_log.txt
+_bili_dev.ax
+_qw_out.txt
+.gitignore
+_weather_template.ax
+lunar.ax
+oil_price.ax
+electricity_cost.ax
+bilibili_fans.ax
+3d_print.ax
+weather_ha.ax
+uv_hum.ax
+_qw_err.txt

@@ -58,6 +58,10 @@
   X(scriptingEnabled, "scren", 0)     \
   X(scriptLimit, "scrlimit", 0)       \
   X(scriptMaxBytes, "scrmax", 0)      \
+  X(powerOffHour, "poffh", 0)         \
+  X(powerOffMinute, "poffm", 0)       \
+  X(powerOnHour, "ponh", 0)           \
+  X(powerOnMinute, "ponm", 0)         \
   X(pinMatrix, "pmatrix", 0)          \
   X(pinBtnLeft, "pbtnl", 0)           \
   X(pinBtnSelect, "pbtns", 0)         \

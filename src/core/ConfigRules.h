@@ -51,6 +51,10 @@ inline const NumRange* ranges(std::size_t& count) {
       {"brightnessSmoothing", 0, 60000, true},
       {"scriptLimit", 0, 32, true},
       {"scriptMaxBytes", 1024, 32768, true},
+      {"powerOffHour", -1, 23, true},
+      {"powerOffMinute", 0, 59, true},
+      {"powerOnHour", -1, 23, true},
+      {"powerOnMinute", 0, 59, true},
   };
   count = sizeof(kRanges) / sizeof(kRanges[0]);
   return kRanges;

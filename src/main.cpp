@@ -647,6 +647,25 @@ void loop() {
   probe::report("engine", 256);
   probe::begin();
 
+  // Scheduled matrix power off/on. Only acts when the clock is synced (year >= 2000) and the
+  // configured minute matches the wall-clock minute. A value of -1 disables that transition.
+  {
+    time_t nowT = time(nullptr);
+    struct tm tmv;
+    localtime_r(&nowT, &tmv);
+    if (tmv.tm_year > 100) {
+      const int curMin = tmv.tm_hour * 60 + tmv.tm_min;
+      if (g_cfg.powerOffHour >= 0 &&
+          curMin == g_cfg.powerOffHour * 60 + g_cfg.powerOffMinute) {
+        g_engine->state().runtime().matrixOff = true;
+      }
+      if (g_cfg.powerOnHour >= 0 &&
+          curMin == g_cfg.powerOnHour * 60 + g_cfg.powerOnMinute) {
+        g_engine->state().runtime().matrixOff = false;
+      }
+    }
+  }
+
   {
     RenderCtx sctx;
     sctx.settings = &g_engine->state().settings();
