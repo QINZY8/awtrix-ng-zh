@@ -87,6 +87,48 @@ next to your script; fix the line it names and save again. The full story is und
 
 ---
 
+## Everything a script can do, on one screen
+
+The rest of this page explains each of these properly. This is the map: find the
+row that sounds like the app you have in mind, and follow it.
+
+| For | The calls |
+|---|---|
+| [Being an app](#the-lifecycle) | `draw()` `setup()` `loop()` `on_show()` `on_hide()` `on_button()` `should_show()` `duration()` |
+| [Drawing](#panel-and-drawing) | `clear()` `pixel()` `line()` `rect()` `rect_fill()` `circle()` `circle_fill()` `icon()` `width()` `height()` `rgb()` `hsv()` |
+| [Writing text](#panel-and-drawing) | `text()` `text_width()` `text_ink_width()` `font()` |
+| [Text that moves or shades](#styled-and-scrolling-text) | `scroll_text()` `ramp_text()` |
+| [Charts and bars](#charts-and-progress) | `bar_chart()` `line_chart()` `progress()` |
+| [Animated backgrounds](#effects-and-overlays) | `effect()` `overlay()` |
+| [The clock and the calendar](#time) | `hour()` `minute()` `second()` `weekday()` `day()` `month()` `year()` `now_ms()` `epoch_ms()` |
+| [Working with numbers](#numbers) | `num()` `round()` `clamp()` `min()` `max()` |
+| [Remembering across a reboot](#storage) | `store.get()` `store.set()` |
+| [Letting the user change something](#settings-the-user-can-change) | a `# @config` line, then `store.get()` |
+| [Fetching from the internet](#http) | `http.get()` `http.post()` `http.put()` `http.patch()` `http.delete()` |
+| [Picking a value out of a reply](#regular-expressions) | `re.search()` `re.match()` `re.matchall()`, or `json.load()` |
+| [Home automation](#mqtt) | `mqtt.publish()` `mqtt.subscribe()` |
+| [Handing values to another app](#talking-to-other-apps) | `shared.set()` `shared.get()` `shared.age()` `shared.keys()` |
+| [Sharing code between apps](#sharing-code-between-scripts) | a `# @module` file, then `import` |
+| [Interrupting with an alert](#notifications) | `notify()` |
+| [Making a noise](#sound) | `sound.play()` `sound.rtttl()` `sound.stop()` |
+| [What the device measures](#reading-the-sensors) | `sensor.temperature()` `sensor.humidity()` `sensor.pressure()` `sensor.light()` `sensor.battery()` |
+| [What the owner configured](#device-settings) | `settings.get()` `settings.set()` `settings.apply_case()` |
+| [Moving the rotation along](#driving-the-rotation) | `rotation.show()` `rotation.next()` `rotation.previous()` `rotation.pause()` `rotation.resume()` |
+| [Working out what went wrong](#logging) | `log()` |
+| [Which firmware is running](#which-firmware-is-running) | `version()` |
+
+None of it needs an `import`. Only `json`, `string` and `math` do, and one line at
+the top of the file is the whole ceremony.
+
+Three habits carry most of it: keep what you fetched in a member and let
+[`draw()`](#the-lifecycle) only paint it, ask [`width()`](#panel-and-drawing)
+instead of assuming 32 columns, and put anything the next person might want to
+change in a [`@config`](#settings-the-user-can-change) line rather than in the
+source. A [complete app doing exactly that](#a-real-one-weather) is at the end of
+the page.
+
+---
+
 ## Just enough Berry
 
 You do not need to know Berry to use this page - the examples are meant to be
@@ -140,7 +182,7 @@ end
 also closed with `end`:
 
 ```berry
-for x : 0 .. 31          # x runs 0, 1, ... 31
+for x : 0 .. width() - 1     # x runs 0, 1, ... to the right-hand edge
   pixel(x, 7, 0x202020)
 end
 ```
@@ -195,7 +237,9 @@ The hooks are **methods on your class**. Only `draw()` is required; define the o
 
 After a reboot each app's first `loop()` starts a couple of seconds after the previous app's, so a device full of pollers does not fire every first fetch in the same second.
 
-`draw()` is the only place with a canvas. The drawing functions still exist everywhere else - they simply do nothing, so calling `pixel()` from `loop()` is harmless and invisible rather than an error.
+`draw()` is the only place with a canvas. The drawing functions still exist everywhere else - they simply do nothing, so calling `pixel()` from `loop()` is harmless and invisible rather than an error. Asking questions is fine anywhere: `width()`, `height()` and the text measurements answer the same in every hook.
+
+`on_show()` runs before the first `draw()` of that appearance, so it is the place to reset anything that should start over each time your app comes round - a scroll position, an animation step, a counter.
 
 State lives in **instance members** (`self.x`), declared with `var` at the top of the class. They persist between calls:
 
@@ -372,10 +416,17 @@ The short examples in this section show a single method for brevity - read them 
 
 ### Panel and drawing
 
-The panel is a grid of 32×8 pixels. **`x` runs 0–31 from the left, `y` runs 0–7
-from the top** - so `(0, 0)` is the top-left corner, `(31, 7)` the bottom-right,
-and a *larger* `y` is *lower* on the panel. Anything you draw off the edge is
-simply clipped, never an error.
+The panel is a grid eight pixels high and - on a Ulanzi and most others - thirty-two
+wide. **`x` runs from `0` at the left to `width() - 1`, `y` runs 0–7 from the
+top** - so `(0, 0)` is the top-left corner and a *larger* `y` is *lower* on the
+panel. Anything you draw off the edge is simply clipped, never an error.
+
+Ask `width()` rather than writing `32`: someone running two or four panels in a
+row has 64 or 128 columns, and an app that measures fills them instead of
+huddling in the first quarter. The height is always 8.
+
+Both answer while a frame is being drawn, which is where layout belongs anyway -
+in `setup()`, before there is a frame, they say `0`.
 
 **A colour is one number.** Write it as `0x` followed by the same six hex digits
 you know from HTML colour codes: `#FF0000` on the web is `0xFF0000` here - two
@@ -386,11 +437,11 @@ build the same number from plain channel values.
 
 | Call | Does | Example |
 |---|---|---|
-| `width()` | panel width in pixels (32) | `var w = width()` |
-| `height()` | panel height in pixels (8) | `var h = height()` |
+| `width()` | panel width in pixels - 32 as a rule, more on a chained panel | `var w = width()` |
+| `height()` | panel height in pixels (always 8) | `var h = height()` |
 | `clear(color?)` | fill the frame; black when omitted | `clear()` |
 | `pixel(x, y, color)` | one pixel | `pixel(0, 0, 0xFF0000)` |
-| `line(x0, y0, x1, y1, color)` | a line | `line(0, 0, 31, 7, 0x00FF00)` |
+| `line(x0, y0, x1, y1, color)` | a line | `line(0, 0, width() - 1, 7, 0x00FF00)` |
 | `rect(x, y, w, h, color)` | rectangle outline | `rect(0, 0, 32, 8, 0x333333)` |
 | `rect_fill(x, y, w, h, color)` | filled rectangle | `rect_fill(0, 6, 10, 2, 0x0000FF)` |
 | `circle(cx, cy, r, color)` | circle outline | `circle(4, 4, 3, 0xFFFFFF)` |
@@ -543,6 +594,18 @@ end
 
 The clock is attached to every hook: `draw()`, `loop()`, `on_show()`, `on_hide()`, `on_button()`, `should_show()` and every HTTP or MQTT callback all read the same wall-clock time.
 
+**One place has no clock: `init()` and `setup()` while AWTRIX is starting up.** Your app is loaded before the device has fetched the time, so every call in the table above answers `-1` there - not a wrong time, an impossible one. Only the clock is missing: `width()`, `height()`, `text_width()` and `text_ink_width()` all answer properly there, so measuring text and sizing to the panel in `init()` is safe. It costs nothing as long as you do not build something from the clock: give members their starting values in `init()` and read the time in `loop()` or `draw()`, where it is always right. If `setup()` genuinely needs the date, check first:
+
+```berry
+  def setup()
+    if hour() >= 0
+      # the clock is up - this is a re-save, not a cold boot
+    end
+  end
+```
+
+`now_ms()` is the exception. It counts from boot rather than from the calendar, so it answers properly everywhere, `setup()` included.
+
 `now_ms()` is a tick counter, not a date. It counts milliseconds from boot and resets to 0 on every reboot, so a deadline built from it survives only until AWTRIX restarts.
 
 Animation runs on it: a value derived from `now_ms()` advances at a steady rate whatever the frame rate happens to be doing.
@@ -620,7 +683,7 @@ state rather than as a value that looks plausible and is not.
 
 ### Charts and progress
 
-The pushed-app decorations, drawn imperatively. Each spans the whole 32px width
+The pushed-app decorations, drawn imperatively. Each spans the full panel width
 (a script owns its canvas - there is no reserved icon column) and takes the same
 values a pushed app's `bar` / `line` / `progress` keys do.
 
@@ -679,13 +742,33 @@ where `palette` takes the [same names and colour stops](#palettes) as everywhere
 else. Because you call them in order, the layering is yours: run `effect()` first
 as the background, draw your content, then `overlay()` last.
 
+**Build that map once, in `init()`, and keep it in a member.** Written inside
+`draw()` it is a brand-new map forty times a second, which is the one habit that
+turns a pretty app into a greedy one. And pass it **every** frame you want it to
+apply: a bare `effect("Plasma")` runs the effect on its own default settings, so
+leaving the map off on some frames makes the background flicker between two
+looks.
+
 ```berry
-def draw()
-  effect("Plasma", {"speed": 0.4, "palette": "Ocean"})
-  text(6, 6, str(hour()) + ":" + str(minute()), 0xFFFFFF)
-  overlay("snow")
+class Clock
+  var fx
+
+  def init()
+    self.fx = {"speed": 0.4, "palette": "Ocean"}
+  end
+
+  def draw()
+    effect("Plasma", self.fx)
+    text(6, 6, str(hour()) + ":" + str(minute()), 0xFFFFFF)
+    overlay("snow")
+  end
 end
+
+return Clock()
 ```
+
+An effect background is bright and busy. Turn the speed down and pick a darker
+palette when text has to stay readable on top of it.
 
 ### Storage
 
@@ -700,6 +783,10 @@ var maybe = store.get("count")      # nil if never written
 Values may be integers, reals, strings, booleans, lists and maps - anything that survives a JSON round trip. Each app gets its own store, keyed by its install name; apps cannot read each other's. Handing a value to another app is what [`shared`](#talking-to-other-apps) is for.
 
 Reads are cheap. Writes are collected in RAM and reach flash at most once every five seconds - several writes in that window become one - so a `store.set()` per second is fine and will not wear the part out. The trade is that a power cut can cost up to five seconds of writes.
+
+**Everything one app keeps has to fit in 2 KB together.** That is roughly two thousand characters of text, or a few dozen numbers - plenty for what an app needs to remember, and not enough for a whole API response. Store the finished value, never the raw body you got it out of.
+
+Going over does not raise an error, and that is the part worth knowing: the write is dropped, the app carries on with the value it has in memory, and the panel looks entirely correct **until the next reboot** - when the value comes back as whatever fitted last. The log says `store not saved` with the size it refused, so the Scripts tab console is where this shows up rather than on the panel.
 
 Editing and re-saving a script keeps its store: the reloaded instance starts with exactly the keys the old one had, so `init()` and `setup()` see them straight away.
 
@@ -960,7 +1047,9 @@ end)
 
 `status` is `0` and `body` is `nil` when no response arrived - no Wi-Fi, DNS miss, refused connection, too many requests already in flight, or no answer within 30 seconds. Any real response reaches your callback, **including 4xx and 5xx**: that is where an API explains what it did not like, so `body` carries it.
 
-Only `http://` and `https://` URLs are accepted. Redirects are followed. Response bodies are kept up to 8 KB.
+Only `http://` and `https://` URLs are accepted. Response bodies are kept up to 8 KB.
+
+A `GET` follows redirects by itself, so a shortened link or a moved endpoint reaches the right place. A `POST` or `PUT` does not, quite: depending on how the server phrases the redirect, your callback either gets the redirect response itself, or the request arrives at the new address as a `GET` with the body dropped. Neither is what you meant, so **send anything with a body straight to its final URL.**
 
 Pace your requests. A bare `http.get()` in `loop()` fires one a second, which will run you into the eight-in-flight cap and annoy whoever runs the API.
 
@@ -1142,6 +1231,8 @@ return Sensor()
 
 Subscribing to a topic you already hold replaces the callback rather than adding a second one. There is no unsubscribe - deleting or re-saving the script drops its subscriptions.
 
+**Eight subscriptions per script**, and a ninth is quietly ignored - no error, the callback simply never fires. If you find yourself near that number, subscribe once to `sensor/+/temp` instead of ten times to one sensor each, and tell them apart by the topic your callback is handed.
+
 Payloads are strings in both directions; `mqtt.publish()` converts whatever you hand it. A payload you want to calculate with goes through [`num()`](#numbers) first.
 
 ### Notifications
@@ -1297,44 +1388,89 @@ log("fetched " + str(n) + " rows")
 
 Goes to the AWTRIX log, tagged `[script:<name>]`, and shows up in the web UI console. It accepts any value, not just strings.
 
+### Which firmware is running
+
+```berry
+log("running on " + version())        # e.g. "1.0.14"
+```
+
+`version()` is the firmware version as a string, the same one the web UI shows. Use it when a script wants to say which build it ran on, or to skip something that only newer firmware can do:
+
+```berry
+  def setup()
+    if version() >= "1.0.14"
+      # ...
+    end
+  end
+```
+
+Berry compares strings character by character, so this only reads correctly while the parts stay one digit. Comparing for equality against a known release is the safer test.
+
 ---
 
 ## A real one: weather
 
-**`weather.ax`** is the showcase - current temperature from Open-Meteo, which needs no API key, in a hundred lines of which most are comments. Upload it and set your location in the web UI; nobody has to open the source at all.
+**`weather.ax`** is the showcase - the current temperature from Open-Meteo, which needs no API key, next to a sky symbol drawn from plain rectangles and circles. Upload it, put your coordinates in the web UI, and nobody has to open the source at all. The blocks below are the whole file, in order.
 
 ```berry
 # @name    Weather
 # @desc    Current temperature via Open-Meteo (no API key)
 # @author  awtrix-ng
 # @version 1.0
-# @config  lat   text   "Latitude"    default="52.52"
-# @config  lon   text   "Longitude"   default="13.40"
+# @config  lat text "Latitude"  default="52.52" help="Decimal degrees, north positive"
+# @config  lon text "Longitude" default="13.40" help="Decimal degrees, east positive"
 
 import json
 
 class Weather
-  var url
-  var temp, wcode
-  var ticks, in_flight
+  var url            # built once from the configured coordinates
+  var temp           # last reading in °C, nil until the first success
+  var label          # the finished string draw() paints, built once per fetch
+  var sky            # 0 clear, 1 cloud, 2 rain, 3 snow, 4 storm
+  var ticks          # loop() calls left until the next fetch
+  var in_flight      # true while a request is outstanding
 ```
 
 The header is the [sharing convention](#sharing-a-script), plus the two [settings](#settings-the-user-can-change) that make this file worth passing on: latitude and longitude get a **⚙** on the Apps tab, so whoever receives it puts in their own place without touching Berry.
+
+Every member is declared with `var` at the top and given its value in `init()`. The comments are the point of the list: `sky` is a bucket rather than a raw weather code, and `label` is a finished string - both are decisions made once per fetch so that `draw()` has nothing left to work out.
 
 ```berry
   def init()
     self.url = "https://api.open-meteo.com/v1/forecast?current_weather=true" +
                "&latitude=" + store.get("lat") + "&longitude=" + store.get("lon")
     self.temp = store.get("temp")
-    self.wcode = store.get("wcode", 0)
+    self.sky = store.get("sky", 0)
+    self.label = self.temp == nil ? nil : self.format(self.temp)
     self.ticks = 0
     self.in_flight = false
   end
 ```
 
-`init()` runs once as the instance is created, **after** the stored values are back. So the panel shows the last known reading the instant AWTRIX boots, rather than `...` until the network comes up and the first request lands. `store.get(key)` with no default yields `nil`, which is what the draw code checks for - while `lat` and `lon` always answer, because the header gave them defaults.
+`init()` runs once as the instance is created, **after** the stored values are back. So the panel shows the last known reading the instant AWTRIX boots, rather than `...` until the network comes up and the first request lands. `store.get(key)` with no default yields `nil`, which is what the draw code checks for - while `lat` and `lon` always answer, because the header gave them defaults. Never repeat those defaults in the code; the header is the one place they belong.
 
 Changing the location in the web UI restarts the app, so `init()` builds a fresh `url` from the new coordinates by itself.
+
+```berry
+  # --- fetch ---
+
+  def format(t)
+    var half = t >= 0 ? 0.5 : -0.5
+    return str(int(t + half)) + "°"
+  end
+
+  def classify(code)
+    if code >= 95 return 4 end
+    if code >= 85 return 3 end
+    if code >= 80 return 2 end
+    if code >= 71 && code <= 77 return 3 end
+    if code >= 51 return 2 end
+    if code >= 2  return 1 end
+    return 0
+  end
+```
+
+`int()` truncates towards zero, so the rounding half has to follow the sign - otherwise −3.4 °C displays as −3 in one direction and −2 in the other. `classify()` folds the WMO weather codes into the five buckets the panel can actually tell apart. Both run once per fetch, never per frame.
 
 ```berry
   def on_body(body, status)
@@ -1349,50 +1485,85 @@ Changing the location in the web UI restarts the app, so `init()` builds a fresh
     if t == nil return end
 
     self.temp = t
-    self.wcode = int(cw.find("weathercode", 0))
-    store.set("temp", self.temp)
-    store.set("wcode", self.wcode)
+    self.sky = self.classify(int(cw.find("weathercode", 0)))
+    self.label = self.format(t)
+    store.set("temp", t)
+    store.set("sky", self.sky)
   end
 ```
 
-Three habits worth copying. **One `nil` check covers every failure** - offline, refused, garbage, or nothing at all within thirty seconds. This endpoint needs no credentials, so the `status` argument is ignored here; a script behind a token would branch on it. **`find()` rather than `[]`**, because indexing a map with a key that is not there raises, and an API that changes its shape should not leave your app stuck broken. And **the store is written only once the data is good**, so a bad response cannot poison the value that survives the next reboot.
+Four habits worth copying. **One `nil` check covers every failure** - offline, refused, garbage, or nothing at all within thirty seconds. This endpoint needs no credentials, so the `status` argument is ignored here; a script behind a token would branch on it. **`find()` rather than `[]`**, because indexing a map with a key that is not there raises, and an API that changes its shape should not leave your app stuck broken. **The store is written only once the data is good**, so a bad response cannot poison the value that survives the next reboot. And **the display string is built here**, not in `draw()`.
 
-`on_body` updates `self.temp`, `self.wcode` and `self.in_flight` - the instance members declared at the top of the class. They keep their values between calls, and are private to this app. Passing `/ b, st -> self.on_body(b, st)` to `http.get()` is what lets the async callback reach them.
+`json.load()` is safe on this endpoint because the answer is a few hundred bytes. An API that replies with kilobytes wants [`find` and `keep`](#picking-one-field-out-of-a-big-answer) instead, so only the interesting window is ever kept.
+
+`on_body` updates the instance members declared at the top of the class. They keep their values between calls, and are private to this app. Passing `/ b, st -> self.on_body(b, st)` to `http.get()` is what lets the async callback reach them.
 
 ```berry
   def loop()
     if self.ticks <= 0
       self.ticks = 300
-      self.fetch()
+      if !self.in_flight
+        self.in_flight = true
+        http.get(self.url, / b, st -> self.on_body(b, st))
+      end
     end
     self.ticks -= 1
   end
 ```
 
-`loop()` runs whether or not the app is on screen, so this keeps polling in the background and the data is already fresh when the rotation arrives. 300 calls at roughly one a second is close enough to five minutes for weather.
+`loop()` runs whether or not the app is on screen, so this keeps polling in the background and the data is already fresh when the rotation arrives. 300 calls at roughly one a second is close enough to five minutes for weather. The `in_flight` guard means a slow network cannot stack up requests against the eight-in-flight cap - a stalled request delays the next attempt instead of adding to it.
 
-`fetch()` guards on `self.in_flight`, so a slow network cannot stack up requests against the eight-in-flight cap.
+```berry
+  # --- draw ---
+
+  def glyph()
+    if self.sky == 0
+      circle_fill(3, 3, 2, 0xFFAA00)
+      pixel(3, 0, 0xFF6600) pixel(0, 3, 0xFF6600)
+      pixel(6, 3, 0xFF6600) pixel(3, 6, 0xFF6600)
+      return
+    end
+
+    circle_fill(2, 4, 1, 0x8899AA)
+    circle_fill(5, 3, 2, 0x8899AA)
+    rect_fill(1, 4, 6, 2, 0x8899AA)
+
+    if self.sky == 2
+      pixel(2, 7, 0x3388FF) pixel(4, 6, 0x3388FF) pixel(6, 7, 0x3388FF)
+    elif self.sky == 3
+      pixel(2, 7, 0xCCEEFF) pixel(4, 6, 0xCCEEFF) pixel(6, 7, 0xCCEEFF)
+    elif self.sky == 4
+      pixel(4, 6, 0xFFDD00) pixel(3, 7, 0xFFDD00)
+    end
+  end
+```
+
+The symbol is drawn rather than loaded, in the leftmost eight columns. That is deliberate: [`icon()`](#panel-and-drawing) can only draw what its owner has installed, so a shared script that names an icon arrives broken on most devices. Rectangles and circles always work, cost no memory, and the cloud is reused by three of the five states with a couple of pixels changed underneath it.
 
 ```berry
   def draw()
     clear()
 
-    if self.temp == nil
+    if self.label == nil
       text(1, 6, "...", 0x666666)
       return
     end
-    # ... the blob and the number ...
+
+    self.glyph()
+
+    var c = 0x00FF00
+    if self.temp >= 28
+      c = 0xFF4000
+    elif self.temp <= 0
+      c = 0x00AAFF
+    end
+    text(9 + (width() - 9 - text_ink_width(self.label)) / 2, 6, self.label, c)
   end
 ```
 
 `draw()` renders **only from cached state**. It never fetches, never parses and never waits - at forty frames a second it cannot afford to, and it does not need to, because `loop()` has already done the work. This is the shape almost every network-backed script wants.
 
-```berry
-    var half = self.temp >= 0 ? 0.5 : -0.5
-    text(8, 6, str(int(self.temp + half)) + "°", 0xFFFFFF)
-```
-
-`int()` truncates towards zero, so the rounding half has to follow the sign - otherwise −3.4 °C displays as −2.
+The rest is what makes it readable across a room. Nothing has arrived yet is a dimmed `...`, never a blank panel. Colour carries the meaning there is no room to spell out: blue at or below freezing, red from 28 °C, green in between. And the number is centred in the columns the symbol left over - measured with `text_ink_width()`, never guessed, because `-13°` is wider than `5°`.
 
 ```berry
   def on_button(btn)

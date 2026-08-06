@@ -23,6 +23,7 @@
 
 #include "AppConfig.h"
 #include "core/CoreEngine.h"
+#include "core/FrameClock.h"
 #include "core/SocProfileJson.h"
 #include "core/StrCase.h"
 #include "core/api/StateJson.h"
@@ -169,12 +170,17 @@ sim::SimScriptStore g_scriptStore;
 script::ScriptServices g_scriptSvc;
 script::ScriptHost* g_scripts = nullptr;
 
-// Caps the loop at ~40 fps. Without it the host would spin as fast as it can and peg a core, and
-// animations would run at a speed nobody will ever see on the device.
-void paceFrame(int64_t frameStartMs) {
-  constexpr int64_t kFrameBudgetMs = 25;
-  const int64_t spent = monotonicMs() - frameStartMs;
-  if (spent < kFrameBudgetMs) delay(static_cast<unsigned long>(kFrameBudgetMs - spent));
+// Without this the host would spin as fast as it can and peg a core, and animations would run at a
+// speed nobody will ever see on the device.
+void paceFrame() {
+  static int64_t nextMs = 0;
+  const int64_t now = monotonicMs();
+  if (nextMs <= now) {
+    nextMs = now + kFramePeriodMs;
+    return;
+  }
+  delay(static_cast<unsigned long>(nextMs - now));
+  nextMs += kFramePeriodMs;
 }
 
 }
@@ -375,6 +381,10 @@ int main(int argc, char** argv) {
            DispatchResult::Ok;
   };
   g_scriptSvc.settings = [] { return &g_engine->state().settings(); };
+  g_scriptSvc.runtime = [] { return &g_engine->state().runtime(); };
+  g_scriptSvc.fonts[0] = &awtrixFont(FontId::Small);
+  g_scriptSvc.fonts[1] = &awtrixFont(FontId::Large);
+  g_scriptSvc.panel = g_canvas;
   g_scriptSvc.setSettings = [](const std::string& json) {
     Command c(CommandType::SetSettings);
     c.payload = json;
@@ -498,10 +508,10 @@ int main(int argc, char** argv) {
       sctx.settings = &g_engine->state().settings();
       sctx.runtime = &g_engine->state().runtime();
       sctx.font = &awtrixFont(FontId::Small);
-    sctx.fonts[0] = &awtrixFont(FontId::Small);
-    sctx.fonts[1] = &awtrixFont(FontId::Large);
+      sctx.fonts[0] = &awtrixFont(FontId::Small);
+      sctx.fonts[1] = &awtrixFont(FontId::Large);
       g_pageClock.fill(sctx, now);
-      if (g_scripts) g_scripts->tick(sctx, g_engine->currentAppId());
+      if (g_scripts) g_scripts->tick(sctx, g_engine->currentAppId(), g_engine->incomingAppId());
     }
     g_scriptStore.tick(now);
 
@@ -530,6 +540,6 @@ int main(int argc, char** argv) {
         break;
     }
     g_board.show(*g_canvas);
-    paceFrame(now);
+    paceFrame();
   }
 }

@@ -39,6 +39,21 @@ void run(ScrollModel& m, long fromMs, long untilMs) {
   for (long t = fromMs + 20; t <= untilMs; t += 20) m.advance(t);
 }
 
+long runUntilCycle(ScrollModel& m, long fromMs, int cycle, int repeat) {
+  long t = fromMs;
+  for (int i = 0; i < 20000 && m.cycles() < cycle; ++i) {
+    t += 20;
+    m.advance(t, repeat);
+  }
+  return t;
+}
+
+long runRepeat(ScrollModel& m, long fromMs, long untilMs, int repeat) {
+  long t = fromMs;
+  for (t = fromMs + 20; t <= untilMs; t += 20) m.advance(t, repeat);
+  return t;
+}
+
 }
 
 void setUp() {}
@@ -51,9 +66,17 @@ static void test_long_stall_does_not_teleport_the_text() {
   const float before = m.x();
   m.advance(1020);
   const float step = before - m.x();
-  TEST_ASSERT_TRUE_MESSAGE(step > 0.f, "still moves after a stall");
-  TEST_ASSERT_TRUE_MESSAGE(step <= 21.f * 0.1f + 0.01f,
-                           "a stall advances at most 100ms worth of travel");
+  TEST_ASSERT_FLOAT_WITHIN_MESSAGE(0.001f, 0.5f, step,
+                                   "a stalled frame is still one frame of travel, not a catch-up");
+}
+
+static void test_a_second_draw_in_the_same_frame_does_not_move_the_text_twice() {
+  ScrollModel m;
+  m.reset(make(ScrollMode::Wrap, ScrollDirection::Left, ScrollEntry::Offscreen), 0);
+  m.advance(20);
+  const float once = m.x();
+  m.advance(20);
+  TEST_ASSERT_EQUAL_FLOAT(once, m.x());
 }
 
 static void test_inline_entry_starts_at_the_rest_anchor() {
@@ -87,12 +110,33 @@ static void test_offscreen_entry_skips_the_hold() {
   TEST_ASSERT_TRUE_MESSAGE(m.x() < 32.f, "a hold on an empty panel is a pause before nothing");
 }
 
-static void test_speed_is_time_based_at_21px_per_second() {
+static void test_speed_is_half_a_pixel_per_frame_at_100_percent() {
   ScrollModel m;
   m.reset(make(ScrollMode::Wrap), 0);
   m.advance(1000);
+  const float before = m.x();
   run(m, 1000, 2000);
-  TEST_ASSERT_FLOAT_WITHIN(0.5f, 21.f, 9.f - m.x());
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 25.f, before - m.x());
+}
+
+static void test_200_percent_steps_exactly_one_pixel_per_frame() {
+  ScrollModel m;
+  m.reset(make(ScrollMode::Wrap, ScrollDirection::Left, ScrollEntry::Inline, 60, 200), 0);
+  m.advance(1000);
+  const float before = m.x();
+  m.advance(1020);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 1.f, before - m.x());
+}
+
+static void test_frame_length_does_not_change_the_step() {
+  ScrollModel m;
+  m.reset(make(ScrollMode::Wrap), 0);
+  m.advance(1000);
+  const float before = m.x();
+  m.advance(1005);
+  m.advance(1200);
+  m.advance(1224);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 1.5f, before - m.x());
 }
 
 static void test_zero_speed_freezes() {
@@ -245,14 +289,64 @@ static void test_loop_folds_without_holding_again() {
   TEST_ASSERT_TRUE_MESSAGE(m.moving(), "a loop must not stop to hold when it folds");
 }
 
+static void test_wrap_parks_offscreen_after_its_last_pass() {
+  ScrollModel m;
+  const ResolvedScroll r = make(ScrollMode::Wrap);
+  m.reset(r, 0);
+
+  const long now = runUntilCycle(m, 0, 1, 1);
+  TEST_ASSERT_EQUAL_INT(1, m.cycles());
+  TEST_ASSERT_FLOAT_WITHIN_MESSAGE(0.5f, static_cast<float>(r.xEnd), m.x(),
+                                   "the last pass must stop at the far end, not rewind");
+
+  runRepeat(m, now, now + 4000, 1);
+  TEST_ASSERT_EQUAL_INT(1, m.cycles());
+  TEST_ASSERT_FLOAT_WITHIN(0.5f, static_cast<float>(r.xEnd), m.x());
+}
+
+static void test_wrap_without_a_repeat_keeps_rewinding() {
+  ScrollModel m;
+  m.reset(make(ScrollMode::Wrap), 0);
+
+  const long now = runUntilCycle(m, 0, 1, 0);
+  TEST_ASSERT_EQUAL_FLOAT(9.f, m.x());
+  runRepeat(m, now, now + 20000, 0);
+  TEST_ASSERT_TRUE_MESSAGE(m.cycles() > 1, "repeat 0 must not park the text");
+}
+
+static void test_bounce_parks_on_its_last_round_trip() {
+  ScrollModel m;
+  m.reset(make(ScrollMode::Bounce), 0);
+
+  const long now = runUntilCycle(m, 0, 1, 1);
+  const float parked = m.x();
+  runRepeat(m, now, now + 6000, 1);
+  TEST_ASSERT_EQUAL_INT(1, m.cycles());
+  TEST_ASSERT_EQUAL_FLOAT(parked, m.x());
+}
+
+static void test_loop_parks_on_its_last_period() {
+  ScrollModel m;
+  m.reset(make(ScrollMode::Loop), 0);
+
+  const long now = runUntilCycle(m, 0, 2, 2);
+  const float parked = m.x();
+  runRepeat(m, now, now + 6000, 2);
+  TEST_ASSERT_EQUAL_INT(2, m.cycles());
+  TEST_ASSERT_EQUAL_FLOAT(parked, m.x());
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_long_stall_does_not_teleport_the_text);
+  RUN_TEST(test_a_second_draw_in_the_same_frame_does_not_move_the_text_twice);
   RUN_TEST(test_inline_entry_starts_at_the_rest_anchor);
   RUN_TEST(test_offscreen_entry_starts_outside_the_panel);
   RUN_TEST(test_holds_before_moving);
   RUN_TEST(test_offscreen_entry_skips_the_hold);
-  RUN_TEST(test_speed_is_time_based_at_21px_per_second);
+  RUN_TEST(test_speed_is_half_a_pixel_per_frame_at_100_percent);
+  RUN_TEST(test_200_percent_steps_exactly_one_pixel_per_frame);
+  RUN_TEST(test_frame_length_does_not_change_the_step);
   RUN_TEST(test_zero_speed_freezes);
   RUN_TEST(test_static_mode_never_moves);
   RUN_TEST(test_fitting_text_never_moves);
@@ -266,5 +360,9 @@ int main(int, char**) {
   RUN_TEST(test_bounce_does_not_inherit_the_return_leg_across_a_reset);
   RUN_TEST(test_bounce_sweeps_short_text_towards_the_far_anchor);
   RUN_TEST(test_loop_folds_without_holding_again);
+  RUN_TEST(test_wrap_parks_offscreen_after_its_last_pass);
+  RUN_TEST(test_wrap_without_a_repeat_keeps_rewinding);
+  RUN_TEST(test_bounce_parks_on_its_last_round_trip);
+  RUN_TEST(test_loop_parks_on_its_last_period);
   return UNITY_END();
 }

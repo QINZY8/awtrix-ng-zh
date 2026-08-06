@@ -86,7 +86,6 @@ void RenderPipeline::renderPage(Canvas& dst, const std::string& id, int64_t nowM
     r.textX = slot ? slot->scroll.x() : 0.0f;
     r.scroll = slot ? &slot->scroll.resolved() : nullptr;
     r.uppercase = s.uppercase;
-    r.smoothScroll = s.smoothScroll;
     r.effect = d_.effects->find(spec.effect);
     EffectSettings es;
     es.speed = spec.extras().effectSpeed;
@@ -150,8 +149,13 @@ void RenderPipeline::applyScroll(PageSlot& slot, const AppSpec* spec, int64_t no
                   scrollLayoutFor(spec, width_, iconReservesColumn), nowMs);
 }
 
-void RenderPipeline::advanceScroll(PageSlot& slot, const AppSpec* spec, int64_t nowMs) {
-  slot.scroll.advance(nowMs);
+int RenderPipeline::scrollParkAfter(const AppSpec* spec, bool isNotif) const {
+  return spec && d_.engine->endsOnScrollPasses(*spec, isNotif) ? spec->repeat : 0;
+}
+
+void RenderPipeline::advanceScroll(PageSlot& slot, const AppSpec* spec, int64_t nowMs,
+                                   int parkAfter) {
+  slot.scroll.advance(nowMs, parkAfter);
   if (spec && spec->iconMode == IconMode::PushOnce && !slot.iconPushed && slot.scroll.x() <= 0) {
     slot.iconPushed = true;
     slot.scroll.setStartX(0);
@@ -225,7 +229,7 @@ void RenderPipeline::renderFrame(Canvas& out, int64_t nowMs) {
   }
 
   const AppSpec* spec = pageSpec(renderId, isNotif);
-  advanceScroll(slotA_, spec, nowMs);
+  advanceScroll(slotA_, spec, nowMs, scrollParkAfter(spec, isNotif));
 
   if (slotA_.icon) slotA_.icon->advance(nowMs);
 
@@ -243,7 +247,7 @@ void RenderPipeline::renderFrame(Canvas& out, int64_t nowMs) {
       slotB_.scroll.restart(nowMs);
       slotB_.iconPushed = false;
     }
-    advanceScroll(slotB_, toSpec, nowMs);
+    advanceScroll(slotB_, toSpec, nowMs, 0);
     if (slotB_.icon) slotB_.icon->advance(nowMs);
 
     if (!transA_) {
