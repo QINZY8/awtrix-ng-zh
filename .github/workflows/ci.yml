@@ -48,6 +48,10 @@ jobs:
       - name: Run web UI tests
         run: npm test
         working-directory: webui/test
+      - name: Run flow-converter engine tests
+        # The converter on the migration page is dependency-free ES modules,
+        # so its golden fixtures run on the node this job already has.
+        run: node --test "tools/flowconv/*.test.mjs"
 
   device-build:
     name: Firmware build (${{ matrix.env }})
@@ -78,7 +82,7 @@ jobs:
         run: pip install -U platformio esptool
       - name: Build firmware
         run: pio run -e ${{ matrix.env }}
-      - name: Build factory images
+      - name: Build USB install images
         # The full-flash artefact: bootloader, partition table, boot_app0 and the
         # app, one image per flash variant this SoC ships in. Built on every run,
         # not only on tags -- the merge depends on the generated partition table,
@@ -87,8 +91,11 @@ jobs:
         run: python scripts/factory_image.py --env ${{ matrix.env }} --all -o dist
       - uses: actions/upload-artifact@v4
         with:
-          name: factory-${{ matrix.env }}
-          path: dist/factory-*.bin
+          # The prefix is usb-, not factory-, and comes from factory_image.asset_name.
+          # Keep the two in step: if-no-files-found is error, so a stale pattern here
+          # fails the tag build after every test has already passed.
+          name: usb-${{ matrix.env }}
+          path: dist/usb-*.bin
           if-no-files-found: error
 
   docs:
@@ -108,12 +115,25 @@ jobs:
         # It lives here rather than in docs.yml because this workflow also runs
         # on tags, so a release cannot publish with the docs out of sync.
         run: python tools/check_docs_sync.py
+      - name: Check the flow converter's maps against the migration tables
+        # The converter widget applies the same renames the key-map tables
+        # teach by hand, links its warnings at anchors across the docs, and
+        # maps TEFF numbers by the row order of the transitions table. Any of
+        # those edited without the other side leaves the page and the widget
+        # disagreeing at the same scroll position.
+        run: python tools/check_flow_converter.py
       - name: Check the downloadable agent skill against its sources
         # The zip the docs offer is committed, so an edit to SKILL.md or to the
         # AI system prompt it packs leaves a stale archive that nothing else
         # notices -- the download keeps working and keeps handing out the old
         # API.
         run: python tools/gen_agent_skill.py --check
+      - name: Check the guide screenshots against their examples
+        # The pictures under the guide examples are rendered by the simulator,
+        # which CI does not build, so they are committed. Without this an
+        # example can be edited and its picture left showing the old result --
+        # the one kind of stale doc a reader has no way to spot.
+        run: python tools/check_docshots.py
       - name: Check the editor's Berry API table against the firmware
         # Same class of drift, different consumer: the web UI editor highlights
         # and completes from a table generated out of the binding registrations.
@@ -168,11 +188,13 @@ jobs:
         run: |
           cp .pio/build/awtrix/firmware.bin firmware-awtrix-ng.bin
           cp .pio/build/awtrix_s3/firmware.bin firmware-awtrix-ng-s3.bin
-      - name: Stage factory images
+      - name: Stage the USB install images
         # What a user flashes over USB: bootloader, partition table, app. The
         # table is the only part that varies with flash size, which is why one
         # build yields several of these. Which sizes ship is stated once, in
-        # gen_partitions.FACTORY_FLASH_SIZES.
+        # gen_partitions.FACTORY_FLASH_SIZES. They carry a usb- prefix because
+        # readers took factory-awtrix-ng-4mb.bin for the update file of a 4 MB
+        # board, which is the one asset name that names a flash size.
         run: |
           python scripts/factory_image.py --env awtrix    --all
           python scripts/factory_image.py --env awtrix_s3 --all
@@ -197,14 +219,16 @@ jobs:
           files: |
             firmware-awtrix-ng.bin
             firmware-awtrix-ng-s3.bin
-            factory-awtrix-ng-*.bin
+            usb-awtrix-ng-*.bin
             licenses-awtrix-ng.zip
       - name: Flip the release live, now that every asset is attached
-        # This is what fires `release: published`, and with it the Discord
-        # notification -- see .github/workflows/discord-release.yml.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "$GITHUB_REF_NAME" --draft=false
+      - name: Announce the release on Discord
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run discord-release.yml --ref main -f tag="$GITHUB_REF_NAME"
       - name: Rebuild the docs so the browser flasher serves this release
         # The flasher on getting-started/flashing.md writes whatever factory
         # images the documentation site carries, and those are copied out of the

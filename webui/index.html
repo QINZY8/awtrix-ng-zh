@@ -762,7 +762,7 @@ const I18N={en:{
   bkCaptiveHint:'The Wi‑Fi sign‑in popup can’t upload files. To restore, open this page in a browser:',
   bkRestored:'Backup restored',bkWarnings:'warning(s)',bkRebootQ:'Restore applied. Reboot now to use it?',
   storage:'Storage',of:'of',free:'free',
-  iconshelp:'8×8 JPG or animated GIF. Drag & drop files here or click to choose.',
+  iconshelp:'8×8 to 32×8 PNG, JPG or animated GIF. Drag & drop files here or click to choose.',
   editorTab:'Icon Editor',
   edLoading:'Loading the editor…',
   edUnreachable:'The editor did not load.',
@@ -909,7 +909,7 @@ const I18N={en:{
   bkCaptiveHint:'Der WLAN-Anmelde-Dialog kann keine Dateien hochladen. Zum Wiederherstellen diese Seite im Browser öffnen:',
   bkRestored:'Sicherung wiederhergestellt',bkWarnings:'Warnung(en)',bkRebootQ:'Wiederhergestellt. Jetzt neu starten?',
   storage:'Speicher',of:'von',free:'frei',
-  iconshelp:'8×8 JPG oder animiertes GIF. Dateien hierher ziehen oder klicken zum Auswählen.',
+  iconshelp:'8×8 bis 32×8 PNG, JPG oder animiertes GIF. Dateien hierher ziehen oder klicken zum Auswählen.',
   editorTab:'Icon-Editor',
   edLoading:'Editor wird geladen…',
   edUnreachable:'Der Editor wurde nicht geladen.',
@@ -1056,7 +1056,7 @@ const I18N={en:{
   bkCaptiveHint:'WiFi 登录弹窗无法上传文件。要在浏览器中打开此页面进行恢复：',
   bkRestored:'备份已恢复',bkWarnings:'警告',bkRebootQ:'恢复已应用。现在重启以生效？',
   storage:'存储',of:'/ 共',free:'可用',
-  iconshelp:'8×8 JPG 或动画 GIF。将文件拖到此处或点击选择。',
+  iconshelp:'8×8 至 32×8 的 PNG、JPG 或动画 GIF。将文件拖到此处或点击选择。',
   editorTab:'图标编辑器',
   edLoading:'正在加载编辑器…',
   edUnreachable:'编辑器未能加载。',
@@ -2431,7 +2431,7 @@ window.addEventListener('beforeunload',e=>{if(scrDraft&&scrDraft.dirty)e.prevent
    Device API from ScriptBindings.cpp + Prelude.h; language builtins from
    Berry's be_baselib.c and the modules berry_conf.h enables. Regenerated on
    every build, so adding a binding is all it takes to teach the editor. */
-const BERRY_API=["bar_chart(list, paint?, autoscale?)","circle(cx, cy, r, color)","circle_fill(cx, cy, r, color)","clear(color?)","day()","effect(name, settings?)","epoch_ms()","font(name)","height()","hour()","hsv(h, s, v)","icon(name, x, y)","line(x0, y0, x1, y1, color)","line_chart(list, paint?, autoscale?)","log(value)","minute()","month()","now_ms()","overlay(name, settings?)","pixel(x, y, color)","progress(pct, paint?, bg?)","ramp_text(x, y, str, palette, span?, speed?)","rect(x, y, w, h, color)","rect_fill(x, y, w, h, color)","rgb(r, g, b)","scroll_text(str, color?, opts?)","second()","text(x, y, str, color)","text_ink_width(str)","text_width(str)","version()","weekday()","width()","year()","clamp(v, lo, hi)","http.delete(url, cb, opts?)","http.get(url, cb, opts?)","http.patch(url, body, cb, opts?)","http.post(url, body, cb, opts?)","http.put(url, body, cb, opts?)","http.request(method, url, cb, opts?)","max(a, b)","min(a, b)","mqtt.publish(topic, payload)","mqtt.subscribe(topic, cb)","notify(spec)","num(v, dflt?)","re.match(pattern, text)","re.matchall(pattern, text)","re.search(pattern, text)","rotation.next()","rotation.pause()","rotation.previous()","rotation.resume()","rotation.show()","round(v, digits?)","sensor.battery()","sensor.battery_volts()","sensor.humidity()","sensor.light()","sensor.pressure()","sensor.temperature()","settings.apply_case(str)","settings.get(key)","settings.set(key, value)","shared.age(key)","shared.get(key, dflt?)","shared.keys(owner?)","shared.set(key, value)","sound.play(name)","sound.rtttl(melody)","sound.stop()","store.get(k, dflt?)","store.set(k, v)"];
+const BERRY_API=["bar_chart(list, paint?, autoscale?)","circle(cx, cy, r, color)","circle_fill(cx, cy, r, color)","clear(color?)","day()","effect(name, settings?)","epoch_ms()","font(name)","height()","hour()","hsv(h, s, v)","icon(name, x, y)","line(x0, y0, x1, y1, color)","line_chart(list, paint?, autoscale?)","log(value)","minute()","month()","now_ms()","overlay(name, settings?)","pixel(x, y, color)","progress(pct, paint?, bg?)","ramp_text(x, y, str, palette, span?, speed?)","rect(x, y, w, h, color)","rect_fill(x, y, w, h, color)","rgb(r, g, b)","scroll_text(txt, color?, opts?)","second()","text(x, y, txt, color?)","text_ink_width(txt)","text_width(txt)","version()","weekday()","width()","year()","clamp(v, lo, hi)","http.delete(url, cb, opts?)","http.get(url, cb, opts?)","http.patch(url, body, cb, opts?)","http.post(url, body, cb, opts?)","http.put(url, body, cb, opts?)","http.request(method, url, cb, opts?)","max(a, b)","min(a, b)","mqtt.publish(topic, payload)","mqtt.subscribe(topic, cb)","notify(spec)","num(v, dflt?)","re.match(pattern, text)","re.matchall(pattern, text)","re.search(pattern, text)","rotation.next()","rotation.pause()","rotation.previous()","rotation.resume()","rotation.show()","round(v, digits?)","sensor.battery()","sensor.battery_volts()","sensor.humidity()","sensor.light()","sensor.pressure()","sensor.temperature()","settings.apply_case(str)","settings.get(key)","settings.set(key, value)","shared.age(key)","shared.get(key, dflt?)","shared.keys(owner?)","shared.set(key, value)","sound.play(name)","sound.rtttl(melody)","sound.stop()","store.get(k, dflt?)","store.set(k, v)"];
 const BERRY_MODS=["http","mqtt","re","rotation","sensor","settings","shared","sound","store"];
 const BERRY_CORE=["assert","bool","call","classname","classof","compile","format","gc","global","input","int","isinstance","issubclass","json","math","module","number","print","real","size","str","strict","string","super","type"];
 const BERRY_MAXBYTES=8192;
@@ -3251,8 +3251,9 @@ function maintenanceSection(page){
     try{await post('/api/v1/device/factory-reset');toast(t('rebooting'));setTimeout(()=>location.reload(),12000);}
     catch(e){toast(e.message,false);eraseBtn.disabled=false;}
   });
+  const ver=S.stats&&S.stats.version;
   page.section('maint',t('maint'),t('mainthelp'),[
-    actionRow(t('fwfile'),null,[fwBtn,fwIn]),
+    actionRow(t('fwfile'),ver?t('version')+' '+ver:null,[fwBtn,fwIn]),
     fw.row,
     actionRow(t('reboot'),null,[rebootBtn]),
     actionRow(t('resetset'),t('resetsetH'),[resetBtn]),
@@ -3342,19 +3343,22 @@ function uploadZone(dir,accept,hint,onDone){
   }
   return el('div',null,zone,fileIn);
 }
+let assetRev=0;
 async function uploadFile(file,dir,name,onProgress){
   const x=await xhrPost('/api/v1/files?dir='+encodeURIComponent(dir),'file',file,name,onProgress);
   if(x.status>=300)throw new Error('HTTP '+x.status);
+  assetRev++;
 }
 async function delFile(path){
   await api('/api/v1/files?path='+encodeURIComponent(path),{method:'DELETE'});
+  assetRev++;
 }
 function viewIcons(view){
   const iconsGrid=el('div',{class:'grid-icons'});
   const storSlot=el('div',{class:'wide'});
   async function reload(){
     try{
-      const{data}=await api('/api/v1/files?dir='+encodeURIComponent('/ICONS'));
+      const{data}=await api('/api/v1/files?dir='+encodeURIComponent('/ICONS'),{cache:'no-store'});
       const files=(data.files||[]).sort((a,b)=>a.name.localeCompare(b.name));
       storSlot.replaceChildren(storageCard(data));
       iconsGrid.replaceChildren(...files.map(f=>iconTile(f)));
@@ -3363,7 +3367,7 @@ function viewIcons(view){
   }
   function iconTile(f){
     const base=f.name.replace(/\.[^.]+$/,'');
-    const img=el('img',{src:'/ICONS/'+encodeURIComponent(f.name)+'?v='+f.size,alt:f.name,loading:'lazy'});
+    const img=el('img',{src:'/ICONS/'+encodeURIComponent(f.name)+'?v='+f.size+'.'+assetRev,alt:f.name,loading:'lazy'});
     const pv=el('button',{title:t('preview'),'aria-label':t('preview')},icon('eye'));
     pv.addEventListener('click',async()=>{
       try{await post('/api/v1/notifications',{icon:base,text:' '+base,durationMs:3000});toast(t('shown'));}
@@ -3453,12 +3457,12 @@ function blobToB64(blob){return new Promise((res,rej)=>{
 });}
 function iconIdFrom(name){return(String(name||'').replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9_-]/g,'_').slice(0,32))||'icon';}
 async function piskelSendList(){
-  try{const{data}=await api('/api/v1/files?dir='+encodeURIComponent('/ICONS'));
+  try{const{data}=await api('/api/v1/files?dir='+encodeURIComponent('/ICONS'),{cache:'no-store'});
     postToPiskel({type:'list-result',files:data.files||[],usedBytes:data.usedBytes,totalBytes:data.totalBytes});
   }catch(e){postToPiskel({type:'list-result',files:[],error:e.message});}
 }
 async function piskelSendIcon(name){
-  try{const r=await fetch('/ICONS/'+encodeURIComponent(name));
+  try{const r=await fetch('/ICONS/'+encodeURIComponent(name),{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const blob=await r.blob();
     postToPiskel({type:'load-result',name,mime:blob.type||'image/gif',dataBase64:await blobToB64(blob)});

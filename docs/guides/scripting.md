@@ -40,6 +40,10 @@ end
 
 return Hello()
 ```
+<!-- shot:begin id=hello hash=d6cd03db -->
+![The panel showing "hi" in green](../assets/shots/scripting/hello.png){ .shot }
+<!-- shot:end -->
+
 
 Save it. `Hello` is now in the app rotation, and when it comes round the panel says **hi** in green.
 
@@ -61,6 +65,10 @@ end
 
 return Hello()
 ```
+<!-- shot:begin id=hello-2 hash=add6df2b -->
+![The panel showing the Hello script](../assets/shots/scripting/hello-2.gif){ .shot }
+<!-- shot:end -->
+
 
 Centred text, and a red pixel walking down the left edge once a second.
 
@@ -260,6 +268,10 @@ end
 
 return Frames()
 ```
+<!-- shot:begin id=frames hash=fadab4c1 -->
+![The panel showing the Frames script](../assets/shots/scripting/frames.gif){ .shot }
+<!-- shot:end -->
+
 
 A typo in a builtin (`clesr()`) fails at install time with a `syntax_error`, rather
 than when that line finally runs. Methods on your own class are looked up when they are
@@ -289,6 +301,10 @@ end
 
 return Bin()
 ```
+<!-- shot:begin id=bin hash=d3528868 -->
+![The panel showing "Bin out!" in cyan](../assets/shots/scripting/bin.png){ .shot }
+<!-- shot:end -->
+
 
 Four rules worth knowing:
 
@@ -352,6 +368,10 @@ end
 
 return Slow()
 ```
+<!-- shot:begin id=slow hash=9ef9b2b7 -->
+![The panel showing "read me" in yellow](../assets/shots/scripting/slow.png){ .shot }
+<!-- shot:end -->
+
 
 `duration()` is asked each time the rotation arrives at you, so you can return a different value depending on what there is to show - a long dwell while a message is up, the global time otherwise. **Return `0` or nothing to keep the global app-time**; a missing hook, a non-positive number and a broken app all fall back to it, so you never have to answer unless you want to. The value only sets *how long* you stay - it does not change *whether* you appear (`should_show()`) or *where* you sit in the loop.
 
@@ -446,7 +466,7 @@ build the same number from plain channel values.
 | `rect_fill(x, y, w, h, color)` | filled rectangle | `rect_fill(0, 6, 10, 2, 0x0000FF)` |
 | `circle(cx, cy, r, color)` | circle outline | `circle(4, 4, 3, 0xFFFFFF)` |
 | `circle_fill(cx, cy, r, color)` | filled circle | `circle_fill(4, 4, 3, 0xFFD700)` |
-| `text(x, y, str, color)` | draw text, returns the advance in pixels | `var adv = text(1, 6, "hi", 0xFFFFFF)` |
+| `text(x, y, str, color?)` | draw text, returns the advance in pixels | `var adv = text(1, 6, "hi", 0xFFFFFF)` |
 | `text_width(str)` | how far the pen moves - use it to chain runs and to space repeats | `var w = text_width("hi")` |
 | `text_ink_width(str)` | how wide the lit pixels are - use it to fit and to centre | `var w = text_ink_width("hi")` |
 | `font(name)` | switch to `"small"` or `"large"` for the rest of the frame | `font("large")` |
@@ -463,6 +483,26 @@ def draw()
   text(1 + adv, 6, "42%", 0x00FF00)
 end
 ```
+
+Leave the colour off and the text takes the device's own `textColor`, the same one the built-in
+apps use.
+
+<a id="text-in-several-colours"></a>
+**Text in several colours** - anywhere a call takes a string it also takes a list of pieces,
+each one `[text, colour]`:
+
+```berry
+def draw()
+  clear()
+  text(1, 6, [["CPU ", 0x888888], ["42%", 0x00FF00]])
+end
+```
+
+The pieces are one line: they measure, centre and scroll together, so `scroll_text()` and the
+measuring calls take the same list. A piece written as a plain string, or as `["text"]` with no
+colour of its own, uses the colour of the call, and `font("large")` applies to all of them. It is
+the same thing a [pushed app](../reference/payload.md#colored-fragments) does when its `text` is
+an array rather than a string.
 
 `icon()` draws from the same `/ICONS` folder the rest of AWTRIX uses - see [Icons & assets](icons.md). Give it the bare name, no path and no extension. **An animated GIF animates** - draw the same icon each frame and it plays, on the same schedule a [pushed app](pushed-apps.md)'s icon uses. A handful of icons stay cached, so cycling through a small set is cheap while fanning out over many costs a read each time.
 
@@ -524,7 +564,8 @@ end
 ```
 
 Left out, the colour is the device's own `textColor`, and the line sits on the
-baseline every other app uses.
+baseline every other app uses. In place of the string you may pass a
+[list of coloured pieces](#text-in-several-colours); it travels as one line.
 
 **Give it columns of its own** when your app draws something beside it. The
 second form takes the box the text may travel in - nothing is painted outside it,
@@ -723,6 +764,10 @@ end
 
 return Cpu()
 ```
+<!-- shot:begin id=cpu hash=1244574b -->
+![The panel showing the Cpu script](../assets/shots/scripting/cpu.png){ .shot }
+<!-- shot:end -->
+
 
 ### Effects and overlays
 
@@ -766,6 +811,10 @@ end
 
 return Clock()
 ```
+<!-- shot:begin id=clock hash=bffc0176 -->
+![The panel showing the Clock script](../assets/shots/scripting/clock.gif){ .shot }
+<!-- shot:end -->
+
 
 An effect background is bright and busy. Turn the speed down and pick a darker
 palette when text has to stay readable on top of it.
@@ -814,6 +863,10 @@ end
 
 return Greeter()
 ```
+<!-- shot:begin id=greeter hash=b2e7f7f4 -->
+![The panel showing the Greeter script](../assets/shots/scripting/greeter.png){ .shot }
+<!-- shot:end -->
+
 
 On the **Apps** tab the row now has a **⚙** button. It opens the settings under the row, with a
 text box for the name and a colour picker for the colour - the picker carries its hex value across
@@ -951,6 +1004,10 @@ end
 
 return Battery()
 ```
+<!-- shot:begin id=battery hash=a2a3b4fd -->
+![The panel showing the Battery script](../assets/shots/scripting/battery.png){ .shot }
+<!-- shot:end -->
+
 
 The `import` line goes at the **top of the file**, outside the class, and every method can use the
 name from there on.
@@ -1011,6 +1068,10 @@ end
 
 return Greeter()
 ```
+<!-- shot:begin id=greeter-2 hash=dec387e0 -->
+![The panel showing the Greeter script](../assets/shots/scripting/greeter-2.png){ .shot }
+<!-- shot:end -->
+
 
 On the **Apps** tab the module's row now has the same **⚙** an app with settings gets. Change the
 city there once, and every app that imports `location` shows it.
@@ -1228,6 +1289,10 @@ end
 
 return Sensor()
 ```
+<!-- shot:begin id=sensor hash=a8d1204d -->
+![The panel showing the Sensor script](../assets/shots/scripting/sensor.png){ .shot }
+<!-- shot:end -->
+
 
 Subscribing to a topic you already hold replaces the callback rather than adding a second one. There is no unsubscribe - deleting or re-saving the script drops its subscriptions.
 

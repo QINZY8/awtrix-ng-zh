@@ -109,14 +109,22 @@ class HttpApiServer::BodyHandler : public RequestHandler {
 
 namespace {
 
-// ESP image header: byte 0 is the magic, bytes 12 and 13 hold the chip id, little endian.
-constexpr size_t kEspImageHeaderBytes = 16;
+// ESP image header: byte 0 is the magic, bytes 12 and 13 hold the chip id, little endian. An app
+// image carries an esp_app_desc_t at offset 32; a usb-*.bin install image starts with the
+// bootloader, which has none - and on the ESP32, whose bootloader sits at 0x1000, with erased
+// padding before it.
+constexpr size_t kEspImageHeaderBytes = 36;
 constexpr size_t kEspImageChipIdOffset = 12;
+constexpr size_t kEspAppDescOffset = 32;
 constexpr uint8_t kEspImageMagic = 0xE9;
+constexpr uint8_t kEspFlashErasedByte = 0xFF;
+constexpr uint32_t kEspAppDescMagic = 0xABCD5432;
 #if defined(AWTRIX_SOC_ESP32S3)
 constexpr uint16_t kExpectedChipId = 0x0009;
+constexpr const char* kUpdateImageName = "firmware-awtrix-ng-s3.bin";
 #else
 constexpr uint16_t kExpectedChipId = 0x0000;
+constexpr const char* kUpdateImageName = "firmware-awtrix-ng.bin";
 #endif
 
 const char* chipIdName(uint16_t id) {
@@ -350,7 +358,10 @@ void HttpApiServer::collectBody(WebServer& server, const String& uri, HTTPRaw& r
   switch (raw.status) {
     case RAW_START:
       static_cast<RawWebServer&>(server).setRawReadTimeout(kRawBodyIdleTimeoutMs);
-      if (rawSource) arena.init(script::maxSourceBytes());
+      // A small script must not pay for the whole configured scriptMaxBytes: this arena is alive
+      // at the same time as the source copy and the install reserve.
+      if (rawSource)
+        arena.init(arenaCapacityFor(server.clientContentLength(), script::maxSourceBytes()));
       arena.open(rawSource ? script::maxSourceBytes() : bodyCapFor(method, path));
       return;
     case RAW_WRITE:
@@ -379,25 +390,38 @@ void HttpApiServer::handleUpdateUpload() {
     if (!uploadAuthed_) return;
     const size_t contentLen = server_->clientContentLength();
     if (contentLen > 0 && contentLen > ESP.getFreeSketchSpace()) return;
-    updateChipError_.clear();
+    updateImageError_.clear();
     uploadContentChecked_ = false;
     uploadWriteOk_ = Update.begin(UPDATE_SIZE_UNKNOWN);
   } else if (up.status == UPLOAD_FILE_WRITE) {
-    // Catch an image built for a different SoC from the very first chunk, before any of it reaches
-    // the OTA partition.
+    // Catch an image that does not belong in the OTA slot from the very first chunk, before any of
+    // it reaches flash.
     if (uploadWriteOk_ && !uploadContentChecked_ && up.currentSize >= kEspImageHeaderBytes) {
       uploadContentChecked_ = true;
-      if (up.buf[0] != kEspImageMagic) {
-        updateChipError_ = "not a firmware image (missing the 0xE9 header magic)";
+      if (up.buf[0] == kEspFlashErasedByte) {
+        updateImageError_ = std::string("this is a usb-*.bin install image for a first flash "
+                                        "over USB, not an update image - upload ") +
+                            kUpdateImageName + " instead";
+      } else if (up.buf[0] != kEspImageMagic) {
+        updateImageError_ = "not a firmware image (missing the 0xE9 header magic)";
       } else {
         const uint16_t chip = static_cast<uint16_t>(up.buf[kEspImageChipIdOffset]) |
                               static_cast<uint16_t>(up.buf[kEspImageChipIdOffset + 1] << 8);
+        const uint32_t appDesc = static_cast<uint32_t>(up.buf[kEspAppDescOffset]) |
+                                 static_cast<uint32_t>(up.buf[kEspAppDescOffset + 1]) << 8 |
+                                 static_cast<uint32_t>(up.buf[kEspAppDescOffset + 2]) << 16 |
+                                 static_cast<uint32_t>(up.buf[kEspAppDescOffset + 3]) << 24;
         if (chip != kExpectedChipId)
-          updateChipError_ = std::string("image is built for ") + chipIdName(chip) +
-                             ", this device is an " + chipIdName(kExpectedChipId);
+          updateImageError_ = std::string("image is built for ") + chipIdName(chip) +
+                              ", this device is an " + chipIdName(kExpectedChipId);
+        else if (appDesc != kEspAppDescMagic)
+          updateImageError_ =
+              std::string("this is a usb-*.bin install image for a first flash over USB, not an "
+                          "update image - upload ") +
+              kUpdateImageName + " instead";
       }
-      if (!updateChipError_.empty()) {
-        logf("update: refused - %s", updateChipError_.c_str());
+      if (!updateImageError_.empty()) {
+        logf("update: refused - %s", updateImageError_.c_str());
         uploadWriteOk_ = false;
         Update.abort();
         return;
@@ -425,8 +449,8 @@ void HttpApiServer::handleUpdateDone() {
     sendUnauthorized();
     return;
   }
-  if (!updateChipError_.empty()) {
-    sendError(400, "wrongChip", updateChipError_.c_str());
+  if (!updateImageError_.empty()) {
+    sendError(400, "wrongChip", updateImageError_.c_str());
     return;
   }
   if (!uploadWriteOk_ || Update.hasError()) {
@@ -637,6 +661,22 @@ bool HttpApiServer::serveWebUi(const Request& req) {
   return true;
 }
 
+static String assetEtag(File& f) {
+  uint32_t h = 2166136261u;
+  uint8_t buf[256];
+  for (;;) {
+    const size_t n = f.read(buf, sizeof(buf));
+    if (n == 0) break;
+    for (size_t i = 0; i < n; ++i) {
+      h ^= buf[i];
+      h *= 16777619u;
+    }
+  }
+  f.seek(0);
+  return String("\"") + String(static_cast<unsigned long>(f.size()), 16) + "-" +
+         String(static_cast<unsigned long>(h), 16) + "\"";
+}
+
 bool HttpApiServer::serveAsset(const Request& req) {
   if (!req.get) return false;
   if (!assets::isServable(req.path) && (apMode_ || !assets::isBackupReadable(req.path)))
@@ -647,7 +687,14 @@ bool HttpApiServer::serveAsset(const Request& req) {
     sendError(404, "notFound", "file not found");
     return true;
   }
-  server_->sendHeader("Cache-Control", "max-age=3600");
+  const String etag = assetEtag(f);
+  server_->sendHeader("ETag", etag);
+  server_->sendHeader("Cache-Control", "no-cache");
+  if (server_->header("If-None-Match") == etag) {
+    f.close();
+    server_->send(304, "text/plain", "");
+    return true;
+  }
   server_->streamFile(f, mimeFor(req.path));
   f.close();
   return true;

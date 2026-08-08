@@ -29,11 +29,11 @@ Chrome, Edge or Opera on a desktop. Nothing to install:
 Pick your board's port when the browser asks. It detects the chip and the flash size, then writes
 the newest release for it.
 
-**Erase the whole flash first**: tick it the first time you put AWTRIX NG on a board. It clears
-settings, Wi-Fi credentials, icons, melodies, palettes and scripts, and the device comes up as its
-own access point - that is [First boot](first-boot.md).
+**Fresh install** is the first time you put AWTRIX NG on a board. It clears settings, Wi-Fi
+credentials, icons, melodies, palettes and scripts, and the device comes up as its own access
+point - that is [First boot](first-boot.md).
 
-Leave it off to update a board that already runs AWTRIX NG. Everything on it stays, and it comes
+**Update AWTRIX NG** is for a board that already runs it. Everything on it stays, and it comes
 back on your Wi-Fi on the new version. Without a cable, the same update runs
 [over the web UI](../guides/updating.md).
 
@@ -71,9 +71,9 @@ Download from the [releases page](https://github.com/Blueforcer/awtrix-ng/releas
 
 | File | For |
 |---|---|
-| `factory-awtrix-ng-4mb.bin` | 4 MB ESP32 boards |
-| `factory-awtrix-ng-8mb.bin`, `factory-awtrix-ng-16mb.bin` | ESP32 boards with more flash |
-| `factory-awtrix-ng-s3-8mb.bin`, `factory-awtrix-ng-s3-16mb.bin` | ESP32-S3 boards |
+| `usb-awtrix-ng-4mb.bin` | 4 MB ESP32 boards, the Ulanzi TC001 among them |
+| `usb-awtrix-ng-8mb.bin`, `usb-awtrix-ng-16mb.bin` | ESP32 boards with more flash |
+| `usb-awtrix-ng-s3-8mb.bin`, `usb-awtrix-ng-s3-16mb.bin` | ESP32-S3 boards |
 
 Take the one matching your board's flash size. If you are unsure how much it has, ask the chip:
 
@@ -84,15 +84,19 @@ python -m esptool --port COM5 flash_id
 The `firmware-awtrix-ng.bin` and `firmware-awtrix-ng-s3.bin` assets on the same page are **not** for
 this - they are for [updating a device](../guides/updating.md) that already runs AWTRIX NG.
 
+Releases up to v1.0.14 named these images `factory-awtrix-ng-4mb.bin` and so on. Same file, older
+name.
+
 ---
 
 ## 4. Flash it with esptool
 
 ```bash
-python -m esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x0 factory-awtrix-ng-4mb.bin
+python -m esptool --chip esp32 --port COM5 --baud 460800 write_flash 0x0 usb-awtrix-ng-4mb.bin
 ```
 
-Use `--chip esp32s3` for an S3 board. When it finishes it prints `Hash of data verified.`
+Use `--chip esp32s3` for an S3 board. When it finishes it prints `Hash of data verified.` If it
+never gets that far, [When it goes wrong](#when-it-goes-wrong) lists what usually stops it.
 
 !!! warning "Do not raise the baud rate to 921600"
     A write at 921600 aborts partway on the USB-serial bridge a TC001 uses. The chip has been
