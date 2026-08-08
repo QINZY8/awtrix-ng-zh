@@ -751,6 +751,8 @@ const I18N={en:{
   fwfile:'Upload firmware (.bin)',
   resetset:'Reset settings',resetsetH:'Resets display settings to defaults (network stays).',
   factory:'Factory reset',factoryH:'Erases EVERYTHING (WiFi, files, settings). Type the hostname to confirm.',
+  scrMax:'Max script size',scrMaxH:'Largest single script AWTRIX accepts, in bytes (1024-32768).',
+  scrMaxSet:'Apply',scrMaxBad:'Enter a value between 1024 and 32768.',
   erase:'Erase everything',eraseNo:'Hostname does not match',
   bkSection:'Backup & restore',bkSectionH:'Download a ZIP of what you choose, or restore one.',
   bkSectionAp:'Restore',bkSectionApH:'Upload a previously created backup .zip.',
@@ -899,6 +901,8 @@ const I18N={en:{
   fwfile:'Firmware hochladen (.bin)',
   resetset:'Einstellungen zurücksetzen',resetsetH:'Setzt Anzeige-Einstellungen auf Standard zurück (Netzwerk bleibt).',
   factory:'Werkseinstellungen',factoryH:'Löscht ALLES (WLAN, Dateien, Einstellungen). Zur Bestätigung Hostname eintippen.',
+  scrMax:'Max. Skriptgröße',scrMaxH:'Größtes einzelnes Skript, das AWTRIX annimmt, in Bytes (1024-32768).',
+  scrMaxSet:'Anwenden',scrMaxBad:'Wert zwischen 1024 und 32768 eingeben.',
   erase:'Alles löschen',eraseNo:'Hostname stimmt nicht überein',
   bkSection:'Sicherung & Wiederherstellung',bkSectionH:'Ausgewählte Inhalte als ZIP herunterladen oder eine Sicherung einspielen.',
   bkSectionAp:'Wiederherstellen',bkSectionApH:'Ein zuvor erstelltes Backup-.zip einspielen.',
@@ -1047,6 +1051,8 @@ const I18N={en:{
   fwfile:'上传固件（.bin）',
   resetset:'重置设置',resetsetH:'将显示设置重置为默认值（网络保持不变）。',
   factory:'恢复出厂',factoryH:'清除所有内容（WiFi、文件、设置）。输入主机名以确认。',
+  scrMax:'最大脚本大小',scrMaxH:'AWTRIX 接受的单个脚本最大大小（字节，1024-32768）。',
+  scrMaxSet:'应用',scrMaxBad:'请输入 1024-32768 之间的值。',
   erase:'清除所有内容',eraseNo:'主机名不匹配',
   bkSection:'备份与恢复',bkSectionH:'下载所选内容的 ZIP，或恢复一个备份。',
   bkSectionAp:'恢复',bkSectionApH:'上传之前创建的备份 .zip。',
@@ -3256,11 +3262,24 @@ function maintenanceSection(page){
     try{await post('/api/v1/device/factory-reset');toast(t('rebooting'));setTimeout(()=>location.reload(),12000);}
     catch(e){toast(e.message,false);eraseBtn.disabled=false;}
   });
+  const smIn=el('input',{type:'number',min:1024,max:32768,step:1024,value:S.scriptMax||8192});
+  const smBtn=el('button',{class:'pri'},t('scrMaxSet'));
+  smBtn.addEventListener('click',async()=>{
+    const v=parseInt(smIn.value,10);
+    if(isNaN(v)||v<1024||v>32768){toast(t('scrMaxBad'),false);return;}
+    smBtn.disabled=true;
+    try{
+      await req('PUT','/api/v1/system',{scriptMaxBytes:v});
+      S.scriptMax=v;toast(t('saved'));
+    }catch(e){toast(e.message,false);}
+    smBtn.disabled=false;
+  });
   const ver=S.stats&&S.stats.version;
   page.section('maint',t('maint'),t('mainthelp'),[
     actionRow(t('fwfile'),ver?t('version')+' '+ver:null,[fwBtn,fwIn]),
     fw.row,
     actionRow(t('reboot'),null,[rebootBtn]),
+    actionRow(t('scrMax'),t('scrMaxH'),[smIn,smBtn]),
     actionRow(t('resetset'),t('resetsetH'),[resetBtn]),
     actionRow(t('factory'),t('factoryH'),[hostIn,eraseBtn]),
   ]);
