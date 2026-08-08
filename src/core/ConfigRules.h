@@ -55,6 +55,8 @@ inline const NumRange* ranges(std::size_t& count) {
       {"powerOffMinute", 0, 59, true},
       {"powerOnHour", -1, 23, true},
       {"powerOnMinute", 0, 59, true},
+      {"lightOnThreshold", -1, 100, true},
+      {"lightOffThreshold", -1, 100, true},
   };
   count = sizeof(kRanges) / sizeof(kRanges[0]);
   return kRanges;

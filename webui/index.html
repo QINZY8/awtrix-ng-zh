@@ -851,6 +851,7 @@ const I18N={en:{
   grpBtn:'Buttons',grpBtnH:'Physical button behaviour.',
   grpSndHw:'Audio',grpSndHwH:'Sound output, volume and audio hardware.',
   grpScript:'Scripting',grpScriptH:'Berry scripts on AWTRIX. Write and install them on the Scripts tab.',
+  grpAutoOff:'Auto off',grpAutoOffH:'Scheduled and light-based matrix power control.',
   grpMisc:'Misc',grpMiscH:'Everything else.',
 },de:{
   radioTab:'Radio',
@@ -999,6 +1000,7 @@ const I18N={en:{
   grpBtn:'Tasten',grpBtnH:'Verhalten der physischen Tasten.',
   grpSndHw:'Audio',grpSndHwH:'Tonausgabe, Lautstärke und Ton-Hardware.',
   grpScript:'Skripte',grpScriptH:'Berry-Skripte auf AWTRIX. Geschrieben und installiert werden sie im Tab Skripte.',
+  grpAutoOff:'Automatisch aus',grpAutoOffH:'Geplante und lichtbasierte Matrix-Stromsteuerung.',
   grpMisc:'Sonstiges',grpMiscH:'Alles andere.',
 },zh:{
   radioTab:'电台',
@@ -1145,6 +1147,7 @@ const I18N={en:{
   grpBtn:'按键',grpBtnH:'物理按键的行为。',
   grpSndHw:'音频',grpSndHwH:'声音输出、音量和音频硬件。',
   grpScript:'脚本',grpScriptH:'AWTRIX 上的 Berry 脚本。在“脚本”标签页中编写和安装。',
+  grpAutoOff:'自动关机',grpAutoOffH:'定时和基于光照的矩阵电源控制。',
   grpMisc:'其他',grpMiscH:'其他所有内容。',
 }};
 let LANG=localStorage.awtrixLang||'zh';
@@ -1437,10 +1440,12 @@ const SYSF={
  statsInterval:F('misc','number','Stats interval|Stats-Intervall|统计间隔','How often stats go out over MQTT.|Wie oft Stats per MQTT gesendet werden.|统计数据通过 MQTT 发送的频率。',{min:1000,max:600000,unit:'ms'}),
  artnet:F('misc','toggle','Art-Net|Art-Net|Art-Net','Receive Art-Net DMX on UDP 6454.|Art-Net DMX auf UDP 6454 empfangen.|在 UDP 6454 上接收 Art-Net DMX。'),
  debugMode:F('misc','toggle','Debug mode|Debug-Modus|调试模式','Verbose serial logging.|Ausführliches serielles Logging.|详细的串口日志。'),
- powerOffHour:F('misc','number','Power off hour|Ausschalt-Stunde|关机时间（小时）','Scheduled matrix off, hour 0-23. -1 = disabled.|Geplante Matrix-Abschaltung, Stunde 0-23. -1 = deaktiviert.|定时关闭矩阵的小时（0-23）。-1 = 禁用。',{min:-1,max:23}),
- powerOffMinute:F('misc','number','Power off minute|Ausschalt-Minute|关机时间（分钟）','Minute of the scheduled power off.|Minute der geplanten Abschaltung.|定时关机的分钟。',{min:0,max:59}),
- powerOnHour:F('misc','number','Power on hour|Einschalt-Stunde|开机时间（小时）','Scheduled matrix on, hour 0-23. -1 = disabled.|Geplante Matrix-Einschaltung, Stunde 0-23. -1 = deaktiviert.|定时打开矩阵的小时（0-23）。-1 = 禁用。',{min:-1,max:23}),
- powerOnMinute:F('misc','number','Power on minute|Einschalt-Minute|开机时间（分钟）','Minute of the scheduled power on.|Minute der geplanten Einschaltung.|定时开机的分钟。',{min:0,max:59}),
+ powerOffHour:F('autooff','number','Power off hour|Ausschalt-Stunde|关机时间（小时）','Scheduled matrix off, hour 0-23. -1 = disabled.|Geplante Matrix-Abschaltung, Stunde 0-23. -1 = deaktiviert.|定时关闭矩阵的小时（0-23）。-1 = 禁用。',{min:-1,max:23}),
+ powerOffMinute:F('autooff','number','Power off minute|Ausschalt-Minute|关机时间（分钟）','Minute of the scheduled power off.|Minute der geplanten Abschaltung.|定时关机的分钟。',{min:0,max:59}),
+ powerOnHour:F('autooff','number','Power on hour|Einschalt-Stunde|开机时间（小时）','Scheduled matrix on, hour 0-23. -1 = disabled.|Geplante Matrix-Einschaltung, Stunde 0-23. -1 = deaktiviert.|定时打开矩阵的小时（0-23）。-1 = 禁用。',{min:-1,max:23}),
+ powerOnMinute:F('autooff','number','Power on minute|Einschalt-Minute|开机时间（分钟）','Minute of the scheduled power on.|Minute der geplanten Einschaltung.|定时开机的分钟。',{min:0,max:59}),
+ lightOnThreshold:F('autooff','number','Light on above|Helligkeit zum Einschalten|光照高于此值开机','Light level percent above which the matrix turns on. -1 = disabled.|Helligkeit in Prozent, über der die Matrix einschaltet. -1 = deaktiviert.|光照强度百分比高于此值时打开矩阵。-1 = 禁用。',{min:-1,max:100,unit:'%'}),
+ lightOffThreshold:F('autooff','number','Light off below|Helligkeit zum Ausschalten|光照低于此值关机','Light level percent below which the matrix turns off. -1 = disabled.|Helligkeit in Prozent, unter der die Matrix ausschaltet. -1 = deaktiviert.|光照强度百分比低于此值时关闭矩阵。-1 = 禁用。',{min:-1,max:100,unit:'%'}),
  scriptingEnabled:F('script','toggle','Run scripts|Skripte ausführen|运行脚本','Off frees about 40 KB of RAM and stops every script. Installed scripts are kept. Applies after a reboot.|Aus spart ca. 40 KB RAM und stoppt alle Skripte. Installierte Skripte bleiben erhalten. Wirkt nach einem Neustart.|关闭可释放约 40 KB 内存并停止所有脚本。已安装的脚本会保留。重启后生效。'),
  scriptLimit:F('script','number','Script limit|Skript-Limit|脚本数量上限','How many scripts may run at the same time.|Wie viele Skripte gleichzeitig laufen dürfen.|可同时运行的脚本数量。',{min:0,max:32}),
  scriptMaxBytes:F('script','number','Max script size|Max. Skriptgröße|最大脚本大小','Largest script AWTRIX accepts.|Größtes Skript, das AWTRIX annimmt.|AWTRIX 接受的最大脚本。',{min:1024,max:32768,unit:'B'}),
@@ -1448,7 +1453,7 @@ const SYSF={
 const SYS_GROUPS=[['wifi','grpWifi','grpWifiH'],['web','grpWeb','grpWebH'],['mqtt','grpMqtt','grpMqttH'],
  ['time','grpTime','grpTimeH'],['panel','grpPanel','grpPanelH'],['hw','grpHw','grpHwH'],
  ['gpio','grpGpio','grpGpioH'],['btn','grpBtn','grpBtnH'],
- ['sndhw','grpSndHw','grpSndHwH'],['script','grpScript','grpScriptH'],['misc','grpMisc','grpMiscH']];
+ ['sndhw','grpSndHw','grpSndHwH'],['script','grpScript','grpScriptH'],['autooff','grpAutoOff','grpAutoOffH'],['misc','grpMisc','grpMiscH']];
 const SOUND_KEYS=Object.keys(SYSF).filter(k=>SYSF[k].api==='settings');
 const S={transitions:[],stats:null,ap:false,sysHost:'',sysUid:'',gpio:null,radioCap:null,scriptMax:0,
   scriptsOff:null};

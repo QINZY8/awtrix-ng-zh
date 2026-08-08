@@ -666,6 +666,18 @@ void loop() {
     }
   }
 
+  // Light-based power control: bright enough turns the matrix on, too dark turns it off.
+  // The thresholds are lightLevel percent (0-100); -1 disables that transition.
+  {
+    const float level = g_engine->state().runtime().lightLevel;
+    if (g_cfg.lightOnThreshold >= 0 && level > g_cfg.lightOnThreshold) {
+      g_engine->state().runtime().matrixOff = false;
+    }
+    if (g_cfg.lightOffThreshold >= 0 && level < g_cfg.lightOffThreshold) {
+      g_engine->state().runtime().matrixOff = true;
+    }
+  }
+
   {
     RenderCtx sctx;
     sctx.settings = &g_engine->state().settings();

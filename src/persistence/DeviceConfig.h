@@ -61,6 +61,10 @@ struct DeviceConfig {
   int powerOffHour = -1, powerOffMinute = 0;
   int powerOnHour = -1, powerOnMinute = 0;
 
+  // Light-based power control. lightLevel percent (0-100); -1 disables that transition.
+  int lightOnThreshold = -1;    // lightLevel above this turns the matrix on
+  int lightOffThreshold = -1;   // lightLevel below this turns the matrix off
+
   bool scriptingEnabled = true;
   int scriptLimit = 16;
   int scriptMaxBytes = 8192;

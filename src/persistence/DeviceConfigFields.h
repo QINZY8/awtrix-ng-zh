@@ -62,6 +62,8 @@
   X(powerOffMinute, "poffm", 0)       \
   X(powerOnHour, "ponh", 0)           \
   X(powerOnMinute, "ponm", 0)         \
+  X(lightOnThreshold, "lonthr", 0)    \
+  X(lightOffThreshold, "loffthr", 0)  \
   X(pinMatrix, "pmatrix", 0)          \
   X(pinBtnLeft, "pbtnl", 0)           \
   X(pinBtnSelect, "pbtns", 0)         \
