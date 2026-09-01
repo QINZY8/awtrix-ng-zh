@@ -1173,6 +1173,7 @@ const FIELDS={
  transitionDurationMs:F('apps','number','Transition duration|Übergangsdauer|切换时长','Length of the switch. 0 = instant.|Dauer des Wechsels. 0 = sofort.|切换的时长。0 = 立即。',{min:0,max:5000,unit:'ms'}),
  transitionEffect:F('apps','select','Transition effect|Übergangseffekt|切换特效','Animation between two apps.|Animation zwischen zwei Apps.|两个应用之间的动画。',{opt:'transitions'}),
  blockNavigation:F('apps','toggle','Block buttons|Tasten sperren|锁定按键','Ignore buttons and API for app switching.|App-Wechsel per Taste und API ignorieren.|忽略按键和 API 的应用切换。'),
+ randomAppOrder:F('apps','toggle','Random order|Zufällige Reihenfolge|随机顺序','Show apps in a random order instead of the saved one.|Apps in zufälliger Reihenfolge statt der gespeicherten anzeigen.|以随机顺序显示应用，而非保存的顺序。'),
  timeMode:F('clock','select','Clock layout|Uhr-Layout|时钟布局','What the clock app draws.|Was die Uhr-App zeichnet.|时钟应用绘制的内容。',{opt:[
    [0,'Time only|Nur Uhrzeit|仅时间'],[1,'Calendar, weekday bar below|Kalenderblatt, Wochentage unten|日历，下方星期条'],
    [2,'Calendar, weekday bar on top|Kalenderblatt, Wochentage oben|日历，上方星期条'],[3,'Spiral calendar, weekday below|Ringkalender, Wochentage unten|螺旋日历，下方星期条'],
@@ -3070,11 +3071,16 @@ async function viewDisplay(view){
       if(S.radioCap===null)S.radioCap=caps.radio===true;
     }
     data=mergeDisplayData((await api('/api/v1/settings')).data,(await api('/api/v1/display')).data);
+    try{
+      const sys=(await api('/api/v1/system')).data;
+      if(sys)data.randomAppOrder=!!sys.randomAppOrder;
+    }catch(e){}
   }catch(e){view.append(el('div',{class:'card wide'},t('neterr')));return;}
   const page=settingsPage(view,async(payload)=>{
-    const disp={},set={};
+    const disp={},set={},sys={};
     for(const[k,v]of Object.entries(payload)){
-      if(k==='power')disp.power=v;
+      if(k==='randomAppOrder')sys[k]=v;
+      else if(k==='power')disp.power=v;
       else if(k==='overlay')disp.overlay=v===''?null:v;
       else if(k==='overlaySpeed')disp.overlaySettings={speed:v/100};
       else{
@@ -3085,6 +3091,7 @@ async function viewDisplay(view){
     }
     if(Object.keys(set).length)await req('PATCH','/api/v1/settings',set);
     if(Object.keys(disp).length)await req('PATCH','/api/v1/display',disp);
+    if(Object.keys(sys).length)await req('PUT','/api/v1/system',sys);
   },async()=>{});
   renderSettingsInto(page,data,FIELDS,SET_GROUPS);
   advancedSection(page,data,FIELDS,SOUND_KEYS);

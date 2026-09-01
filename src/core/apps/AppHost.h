@@ -18,6 +18,10 @@ class AppHost {
 
   void setShowGate(ShowGate gate) { gate_ = std::move(gate); }
 
+  // When true, the rotation picks the next app at random instead of in order.
+  void setRandom(bool r) { random_ = r; }
+  bool random() const { return random_; }
+
   void setApps(const std::vector<std::string>& ids);
 
   std::size_t count() const { return apps_.size(); }
@@ -59,6 +63,7 @@ class AppHost {
   AppPhase phase_ = AppPhase::Fixed;
   int64_t phaseStartMs_ = 0;
   bool clockStarted_ = false;
+  bool random_ = false;
 };
 
 }

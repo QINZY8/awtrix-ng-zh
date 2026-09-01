@@ -1,5 +1,8 @@
 #include "core/apps/AppHost.h"
 
+#include <algorithm>
+#include <cstdlib>
+
 namespace awtrix {
 
 namespace {
@@ -57,6 +60,18 @@ const std::string& AppHost::incomingId() const {
 // Next index in direction dir that the gate lets through, or -1 when nothing else can be shown.
 int AppHost::pick(int from, int dir) const {
   const int n = static_cast<int>(apps_.size());
+  if (n < 2) return -1;
+  if (random_) {
+    // Random order: pick uniformly among the apps the gate lets through, excluding the current one.
+    std::vector<int> candidates;
+    candidates.reserve(n - 1);
+    for (int i = 0; i < n; ++i) {
+      if (i == from) continue;
+      if (!gate_ || gate_(apps_[i])) candidates.push_back(i);
+    }
+    if (candidates.empty()) return -1;
+    return candidates[static_cast<std::size_t>(std::rand()) % candidates.size()];
+  }
   for (int step = 1; step < n; ++step) {
     const int i = ((from + dir * step) % n + n) % n;
     if (!gate_ || gate_(apps_[i])) return i;

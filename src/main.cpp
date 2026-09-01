@@ -261,6 +261,7 @@ void setup() {
   g_engine->setHumidityAvailable(g_board->sensors().hasHumidity());
   g_engine->setPressureAvailable(g_board->sensors().hasPressure());
   g_engine->setLightSensorAvailable(g_board->hasLightSensor());
+  g_engine->appHost().setRandom(g_cfg.randomAppOrder);
 
   // Persisted user state back into the engine, then hand it the callbacks that write it out
   // again, so later reorders and station edits save themselves.
@@ -386,6 +387,7 @@ void setup() {
     if (layout.width() == g_board->matrixWidth()) g_board->setMatrixLayout(layout);
     g_engine->state().runtime().tempDecimals = g_cfg.tempDecimals;
     logbuf::setVerbose(g_cfg.debugMode);
+    g_engine->appHost().setRandom(g_cfg.randomAppOrder);
     if (g_scripts)
       g_scripts->setLimit(g_cfg.scriptLimit < 0 ? 0 : static_cast<std::size_t>(g_cfg.scriptLimit));
     script::setMaxSourceBytes(static_cast<std::size_t>(g_cfg.scriptMaxBytes));

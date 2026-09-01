@@ -58,6 +58,7 @@
   X(scriptingEnabled, "scren", 0)     \
   X(scriptLimit, "scrlimit", 0)       \
   X(scriptMaxBytes, "scrmax", 0)      \
+  X(randomAppOrder, "randapp", 0)     \
   X(powerOffHour, "poffh", 0)         \
   X(powerOffMinute, "poffm", 0)       \
   X(powerOnHour, "ponh", 0)           \

@@ -69,6 +69,9 @@ struct DeviceConfig {
   int scriptLimit = 16;
   int scriptMaxBytes = 16384;
 
+  // Random app rotation order (Display -> App loop).
+  bool randomAppOrder = false;
+
   // Defaults come from the SoC profile at construction; load() then overwrites whatever the user
   // has actually stored. A profile change therefore only affects pins nobody has pinned down.
   int pinMatrix = pins::activeProfile().defaults.matrix;
