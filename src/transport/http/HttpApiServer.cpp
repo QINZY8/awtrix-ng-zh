@@ -204,6 +204,9 @@ class LittleFsRestoreSink : public backup::FsRestoreSink {
       const String dir = p.substring(0, slash);
       if (!LittleFS.exists(dir)) LittleFS.mkdir(dir);
     }
+    // Same reason as the single-file upload: a restore rewrites every icon, and overwriting in
+    // place leaks the old blocks until a collection that a nearly-full filesystem cannot run.
+    if (LittleFS.exists(p)) LittleFS.remove(p);
     file_ = LittleFS.open(p, "w");
     curPath_ = path;
     if (!file_) {
@@ -297,6 +300,11 @@ void HttpApiServer::handleFileUpload() {
     uploadPath_ = fn.c_str();
     uploadContentOk_ = true;
     uploadContentChecked_ = false;
+    // Remove a stale file first: LittleFS hands a truncated file's old blocks back only at the
+    // next garbage collection, so overwriting in place leaks them and a batch of re-uploads can
+    // wedge the filesystem at "full" with almost nothing stored. Dropping the file up front frees
+    // the blocks for immediate reuse.
+    if (LittleFS.exists(fn)) LittleFS.remove(fn);
     uploadFile_ = LittleFS.open(fn, "w");
     uploadWriteOk_ = static_cast<bool>(uploadFile_);
   } else if (up.status == UPLOAD_FILE_WRITE) {
