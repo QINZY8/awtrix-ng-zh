@@ -10,7 +10,8 @@ import tempfile
 Import("env")
 
 # Firmware and Hub update controls share the embedded UI; allow their bounded growth.
-BUDGET = 84 * 1024
+# Raised from 84 KB to 96 KB for the Chinese translation table (CJK costs 3 bytes/char).
+BUDGET = 96 * 1024
 SRC = os.path.join(env["PROJECT_DIR"], "webui", "index.html")
 OUT = os.path.join(env["PROJECT_DIR"], "src", "transport", "http", "WebUiAsset.h")
 
