@@ -1082,6 +1082,7 @@ const I18N={en:{
   grpBtn:'Buttons',grpBtnH:'Physical button behaviour.',
   grpSndHw:'Audio',grpSndHwH:'Sound output, volume and audio hardware.',
   grpScript:'Scripting',grpScriptH:'Berry scripts on AWTRIX.',
+  grpAutoOff:'Auto off',grpAutoOffH:'Scheduled and light-based matrix power control.',
   grpMisc:'Misc',grpMiscH:'Everything else.',
 },de:{
   audioTab:'Audio',
@@ -1270,11 +1271,38 @@ const I18N={en:{
   grpBtn:'Tasten',grpBtnH:'Verhalten der physischen Tasten.',
   grpSndHw:'Audio',grpSndHwH:'Tonausgabe, Lautstärke und Ton-Hardware.',
   grpScript:'Skripte',grpScriptH:'Berry-Skripte auf AWTRIX.',
+  grpAutoOff:'Automatisch aus',grpAutoOffH:'Geplante und lichtbasierte Matrix-Stromsteuerung.',
   grpMisc:'Sonstiges',grpMiscH:'Alles andere.',
-}};
-let LANG=localStorage.awtrixLang||(navigator.language&&navigator.language.toLowerCase().startsWith('de')?'de':'en');
+},zh:{
+  audioTab:'音频',
+  mp3s:'MP3',
+  mp3shelp:'用于通知和脚本的自定义 MP3 文件。',
+  radioTab:'电台',
+  radioH:'网络电台。',
+  radionone:'还没有电台。在下方添加一个。',
+  radioname:'名称',radiourl:'流地址',
+  radioadd:'添加电台',
+  radioplaying:'播放中',radiostopped:'未播放',
+  radiodupe:'名称已被使用',radiobadurl:'必须以 http:// 或 https:// 开头',
+  radiolong:'名称过长（24 个字符）',
+
+  skip:'跳到内容',mainnav:'主导航',dash:'仪表盘',display:'显示',system:'系统',icons:'图标',palettes:'调色板',log:'日志',
+  appsTab:'应用',apploop:'应用轮播',apploopH:'AWTRIX 在显示屏上依次显示的应用。拖动 ⠿ 可排序。',
+  background:'后台',backgroundH:'持续运行，但从不显示在屏幕上。',
+  disabledapps:'已禁用',disabledH:'未使用。"启用"可将应用放回轮播或后台。',
+  activate:'启用',deactivate:'禁用',switchto:'立即显示',more:'操作',
+  dupapp:'复制',
+  nobackground:'无后台脚本',noapps:'无应用',dragord:'排序',
+  chipPushed:'已推送',chipScript:'脚本',chipModule:'模块',
+  modules:'模块',modulesH:'其他脚本通过 import 引入的共享构件。',
+  modimport:'import',modnone:'暂无模块',
+  chipSkip:'已跳过',chipSkipH:'脚本本轮跳过。它仍留在轮播中。',
+  chipGone:'无数据',chipGoneH:'该应用已启用并保留位置，但还没有数据推送。下次推送时会重新绘制。',
+  grpAutoOff:'自动关机',grpAutoOffH:'定时和基于光照的矩阵电源控制。',
+},};
+let LANG=localStorage.awtrixLang||(navigator.language&&navigator.language.toLowerCase().startsWith('zh')?'zh':navigator.language&&navigator.language.toLowerCase().startsWith('de')?'de':'en');
 const t=k=>(I18N[LANG]&&I18N[LANG][k])||I18N.en[k]||k;
-const tt=s=>{const p=String(s).split('|');return LANG==='de'&&p[1]?p[1]:p[0];};
+const tt=s=>{const p=String(s).split('|');return LANG==='zh'&&p[2]?p[2]:LANG==='de'&&p[1]?p[1]:p[0];};
 const F=(g,w,l,h,x)=>Object.assign({g,w,l,h},x);
 const HHELP='Black = use the global text colour.|Schwarz = globale Textfarbe verwenden.';
 const OVERLAYS=['rain','snow','drizzle','storm','thunder','frost'];
@@ -1576,12 +1604,19 @@ const SYSF={
  statsInterval:F('misc','number','Stats interval|Stats-Intervall','How often stats go out over MQTT.|Wie oft Stats per MQTT gesendet werden.',{min:1000,max:600000,unit:'ms'}),
  artnet:F('misc','toggle','Art-Net|Art-Net','Receive Art-Net DMX on UDP 6454.|Art-Net DMX auf UDP 6454 empfangen.'),
  debugMode:F('misc','toggle','Debug mode|Debug-Modus','Verbose serial logging.|Ausführliches serielles Logging.'),
- scriptingEnabled:F('script','toggle','Run scripts|Skripte ausführen','Off frees about 40 KB of RAM and stops every script. Installed scripts are kept. Applies after a reboot.|Aus spart ca. 40 KB RAM und stoppt alle Skripte. Installierte Skripte bleiben erhalten. Wirkt nach einem Neustart.'),
+ scriptingEnabled:F('script','toggle','Run scripts|Skripte ausführen|运行脚本','Off frees about 40 KB of RAM and stops every script. Installed scripts are kept. Applies after a reboot.|Aus spart ca. 40 KB RAM und stoppt alle Skripte. Installierte Skripte bleiben erhalten. Wirkt nach einem Neustart.|关闭可释放约 40 KB 内存并停止所有脚本。已安装的脚本会保留。重启后生效。'),
+ powerOffHour:F('autooff','number','Power off hour|Ausschalt-Stunde|关机时间（小时）','Scheduled matrix off, hour 0-23. -1 = disabled.|Geplante Matrix-Abschaltung, Stunde 0-23. -1 = deaktiviert.|定时关闭矩阵的小时（0-23）。-1 = 禁用。',{min:-1,max:23}),
+ powerOffMinute:F('autooff','number','Power off minute|Ausschalt-Minute|关机时间（分钟）','Minute of the scheduled power off.|Minute der geplanten Abschaltung.|定时关机的分钟。',{min:0,max:59}),
+ powerOnHour:F('autooff','number','Power on hour|Einschalt-Stunde|开机时间（小时）','Scheduled matrix on, hour 0-23. -1 = disabled.|Geplante Matrix-Einschaltung, Stunde 0-23. -1 = deaktiviert.|定时打开矩阵的小时（0-23）。-1 = 禁用。',{min:-1,max:23}),
+ powerOnMinute:F('autooff','number','Power on minute|Einschalt-Minute|开机时间（分钟）','Minute of the scheduled power on.|Minute der geplanten Einschaltung.|定时开机的分钟。',{min:0,max:59}),
+ lightOnThreshold:F('autooff','number','Light on above|Helligkeit zum Einschalten|光照高于此值开机','Light level percent above which the matrix turns on. -1 = disabled.|Helligkeit in Prozent, über der die Matrix einschaltet. -1 = deaktiviert.|光照强度百分比高于此值时打开矩阵。-1 = 禁用。',{min:-1,max:100,unit:'%'}),
+ lightOffThreshold:F('autooff','number','Light off below|Helligkeit zum Ausschalten|光照低于此值关机','Light level percent below which the matrix turns off. -1 = disabled.|Helligkeit in Prozent, unter der die Matrix ausschaltet. -1 = deaktiviert.|光照强度百分比低于此值时关闭矩阵。-1 = 禁用。',{min:-1,max:100,unit:'%'}),
+ randomAppOrder:F('autooff','toggle','Random order|Zufällige Reihenfolge|随机顺序','Show apps in a random order instead of the saved one.|Apps in zufälliger Reihenfolge statt der gespeicherten anzeigen.|以随机顺序显示应用，而非保存的顺序。'),
 };
 const SYS_GROUPS=[['wifi','grpWifi','grpWifiH'],['web','grpWeb','grpWebH'],['mqtt','grpMqtt','grpMqttH'],
  ['time','grpTime','grpTimeH'],['panel','grpPanel','grpPanelH'],['hw','grpHw','grpHwH'],
  ['gpio','grpGpio','grpGpioH'],['btn','grpBtn','grpBtnH'],
- ['sndhw','grpSndHw','grpSndHwH'],['script','grpScript','grpScriptH'],['misc','grpMisc','grpMiscH']];
+ ['sndhw','grpSndHw','grpSndHwH'],['script','grpScript','grpScriptH'],['autooff','grpAutoOff','grpAutoOffH'],['misc','grpMisc','grpMiscH']];
 const SOUND_KEYS=Object.keys(SYSF).filter(k=>SYSF[k].api==='settings');
 const S={transitions:[],stats:null,ap:false,sysHost:'',sysUid:'',gpio:null,aud:null,
   scriptsOff:null};
@@ -1703,7 +1738,7 @@ function render(){
   (TABS.find(([n])=>n===r)||TABS[0])[2](view);
 }
 window.addEventListener('hashchange',render);
-$('#langbtn').addEventListener('click',()=>{LANG=LANG==='en'?'de':'en';localStorage.awtrixLang=LANG;$('#langbtn').replaceChildren(LANG.toUpperCase());render();});
+$('#langbtn').addEventListener('click',()=>{LANG=LANG==='en'?'de':LANG==='de'?'zh':'en';localStorage.awtrixLang=LANG;$('#langbtn').replaceChildren(LANG.toUpperCase());render();});
 $('#kofibtn').addEventListener('click',()=>window.open('https://ko-fi.com/blueforcer','_blank','noopener'));
 $('#docsbtn').addEventListener('click',()=>window.open('https://blueforcer.github.io/awtrix-ng/','_blank','noopener'));
 const themeUse=$('#themebtn').querySelector('use');
@@ -1772,7 +1807,7 @@ const WIDGETS={
   },
   secret(ctl,def,value,onInput){
     const input=el('input',{type:'password',autocomplete:'new-password',
-      placeholder:LANG==='de'?'(unverändert - leer lassen zum Behalten)':'(unchanged - leave empty to keep)'});
+      placeholder:LANG==='zh'?'（保持不变 - 留空则保留）':LANG==='de'?'(unverändert - leer lassen zum Behalten)':'(unchanged - leave empty to keep)'});
     input.addEventListener('input',onInput);
     ctl.append(input);
     return{input,blank:true,get:()=>input.value,set:()=>{input.value='';}};
@@ -1842,7 +1877,7 @@ const WIDGETS={
       el('optgroup',{label:a},ns.map(n=>el('option',{value:n},label(n))))));
     sel.value=cur;
     function preview(){
-      const s=tzState(cur),loc=LANG==='de'?'de-DE':'en-GB';
+      const s=tzState(cur),loc=LANG==='zh'?'zh-CN':LANG==='de'?'de-DE':'en-GB';
       const at=new Intl.DateTimeFormat(loc,{timeZone:cur,dateStyle:'medium',timeStyle:'short'}).format(new Date());
       const dst=!s.changes?t('tzNoDst'):s.dst?t('tzDstOn'):t('tzDstOff');
       const nxt=s.changes&&s.next?' · '+t('tzNext')+' '+new Intl.DateTimeFormat(loc,{dateStyle:'medium'}).format(s.next):'';

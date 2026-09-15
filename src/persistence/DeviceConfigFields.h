@@ -57,6 +57,13 @@
   X(tempDecimals, "tempdec", 0)       \
   X(debugMode, "dbg", 0)              \
   X(scriptingEnabled, "scren", 0)     \
+  X(powerOffHour, "poffh", 0)         \
+  X(powerOffMinute, "poffm", 0)       \
+  X(powerOnHour, "ponh", 0)           \
+  X(powerOnMinute, "ponm", 0)         \
+  X(lightOnThreshold, "lonthr", 0)    \
+  X(lightOffThreshold, "loffthr", 0)  \
+  X(randomAppOrder, "randapp", 0)     \
   X(pinMatrix, "pmatrix", 0)          \
   X(pinBtnLeft, "pbtnl", 0)           \
   X(pinBtnSelect, "pbtns", 0)         \

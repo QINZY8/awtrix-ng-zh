@@ -261,6 +261,7 @@ void setup() {
   g_engine->setHumidityAvailable(g_board->sensors().hasHumidity());
   g_engine->setPressureAvailable(g_board->sensors().hasPressure());
   g_engine->setLightSensorAvailable(g_board->hasLightSensor());
+  g_engine->appHost().setRandom(g_cfg.randomAppOrder);
 
   // Persisted user state back into the engine, then hand it the callbacks that write it out
   // again, so later reorders and station edits save themselves.
@@ -386,6 +387,7 @@ void setup() {
     if (layout.width() == g_board->matrixWidth()) g_board->setMatrixLayout(layout);
     g_engine->state().runtime().tempDecimals = g_cfg.tempDecimals;
     logbuf::setVerbose(g_cfg.debugMode);
+    g_engine->appHost().setRandom(g_cfg.randomAppOrder);
     g_mqtt.applyHaConfig(g_cfg);
     applyTimeConfig(g_cfg, false);
     if (g_net.isConnected()) {
@@ -636,6 +638,33 @@ void loop() {
   g_audio.tick(now);
   probe::report("services", 256);
   probe::begin();
+  // Scheduled and light-based matrix power control (local additions).
+  {
+    RuntimeState& rt = g_engine->state().runtime();
+    if (g_cfg.powerOffHour >= 0 || g_cfg.powerOnHour >= 0) {
+      const time_t t = time(nullptr);
+      struct tm lt;
+      if (t != static_cast<time_t>(-1) && localtime_r(&t, &lt) != nullptr) {
+        const int curMin = lt.tm_hour * 60 + lt.tm_min;
+        if (g_cfg.powerOffHour >= 0 &&
+            curMin == g_cfg.powerOffHour * 60 + g_cfg.powerOffMinute) {
+          rt.matrixOff = true;
+        }
+        if (g_cfg.powerOnHour >= 0 &&
+            curMin == g_cfg.powerOnHour * 60 + g_cfg.powerOnMinute) {
+          rt.matrixOff = false;
+        }
+      }
+    }
+    if (rt.lightLevel >= 0) {
+      if (g_cfg.lightOnThreshold >= 0 && rt.lightLevel > g_cfg.lightOnThreshold) {
+        rt.matrixOff = false;
+      }
+      if (g_cfg.lightOffThreshold >= 0 && rt.lightLevel < g_cfg.lightOffThreshold) {
+        rt.matrixOff = true;
+      }
+    }
+  }
   g_engine->tick(now);
   probe::report("engine", 256);
   probe::begin();
