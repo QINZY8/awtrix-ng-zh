@@ -261,7 +261,6 @@ void setup() {
   g_engine->setHumidityAvailable(g_board->sensors().hasHumidity());
   g_engine->setPressureAvailable(g_board->sensors().hasPressure());
   g_engine->setLightSensorAvailable(g_board->hasLightSensor());
-  g_engine->appHost().setRandom(g_cfg.randomAppOrder);
 
   // Persisted user state back into the engine, then hand it the callbacks that write it out
   // again, so later reorders and station edits save themselves.
@@ -387,10 +386,6 @@ void setup() {
     if (layout.width() == g_board->matrixWidth()) g_board->setMatrixLayout(layout);
     g_engine->state().runtime().tempDecimals = g_cfg.tempDecimals;
     logbuf::setVerbose(g_cfg.debugMode);
-    g_engine->appHost().setRandom(g_cfg.randomAppOrder);
-    if (g_scripts)
-      g_scripts->setLimit(g_cfg.scriptLimit < 0 ? 0 : static_cast<std::size_t>(g_cfg.scriptLimit));
-    script::setMaxSourceBytes(static_cast<std::size_t>(g_cfg.scriptMaxBytes));
     g_mqtt.applyHaConfig(g_cfg);
     applyTimeConfig(g_cfg, false);
     if (g_net.isConnected()) {
@@ -402,7 +397,7 @@ void setup() {
 #if defined(AWTRIX_SOC_ESP32S3)
     if (AudioOutEsp32::usable(g_cfg.pinI2sBclk, g_cfg.pinI2sLrclk, g_cfg.pinI2sDout)) {
       g_radio.reset(new AudioOutEsp32(*g_engine, g_cfg.pinI2sBclk, g_cfg.pinI2sLrclk,
-                                      g_cfg.pinI2sDout));
+                                      g_cfg.pinI2sDout, g_cfg.pinI2sMclk, g_cfg.pinAmpEnable));
       g_engine->setPcmSink(g_radio.get());
       g_audio.setPcm(g_radio.get());
     }
@@ -447,6 +442,12 @@ void setup() {
     c.source = Source::Internal;
     return g_engine->submit(c);
   };
+  g_scriptSvc.setDisplayPower = [](bool on) {
+    Command c(CommandType::SetDisplay);
+    c.payload = on ? "{\"power\":true}" : "{\"power\":false}";
+    c.source = Source::Internal;
+    return g_engine->submit(c);
+  };
   g_scriptSvc.sound = [](script::SoundAction a, const std::string& payload) {
     Command c = scriptSoundCommand(a, payload);
     return g_engine->submit(c);
@@ -459,6 +460,12 @@ void setup() {
     return (c.buzzer ? 1 : 0) | (c.track ? 2 : 0) | (c.mp3 ? 4 : 0) |
            (c.radio ? 8 : 0);
   };
+#if defined(AWTRIX_SOC_ESP32S3)
+  if (g_radio)
+    g_scriptSvc.audioStats = [](int64_t now, audio::FrameStats& out) {
+      return g_radio->analysis(now, out);
+    };
+#endif
   g_scriptSvc.rotateNext = [] { g_engine->scriptNextApp(); };
   g_scriptSvc.rotatePrevious = [] { g_engine->scriptPreviousApp(); };
   g_scriptSvc.showApp = [](const std::string& id) { return g_engine->scriptShowApp(id); };
@@ -473,10 +480,10 @@ void setup() {
   g_scriptSvc.log = [](const std::string& s) { logf("%s", s.c_str()); };
   g_scriptIcon.setLog([](const std::string& s) { logf("[icons] %s", s.c_str()); });
   g_scriptSvc.freeHeap = [] {
-    return heap_caps_get_free_size(kGuardHeapCaps);
+    return heap_caps_get_free_size(scriptBufferHeapCaps());
   };
   g_scriptSvc.maxAllocHeap = [] {
-    return heap_caps_get_largest_free_block(kGuardHeapCaps);
+    return heap_caps_get_largest_free_block(scriptBufferHeapCaps());
   };
   g_scriptSvc.logDebug = [](const std::string& s) { logdbg("%s", s.c_str()); };
   g_mqtt.setScriptingRunning(cfg.scriptingEnabled);
@@ -486,8 +493,6 @@ void setup() {
         [](const std::string& id) { g_engine->syncScriptApp(id); },
         [](const std::string& id) { g_engine->removeScriptApp(id); });
     g_scripts = &scripts;
-    scripts.setLimit(cfg.scriptLimit < 0 ? 0 : static_cast<std::size_t>(cfg.scriptLimit));
-    script::setMaxSourceBytes(static_cast<std::size_t>(cfg.scriptMaxBytes));
     g_scriptHttp.begin([](script::HttpResult r) { g_scripts->pushHttpResult(std::move(r)); });
     g_scriptMqtt.begin([](const std::string& t, const std::string& p) { g_mqtt.publishRaw(t, p); },
                        [](const std::string& t) { g_mqtt.subscribeRaw(t); },
@@ -510,7 +515,7 @@ void setup() {
           [modulePass](const std::string& n, const std::string& src, const std::string& st) {
             if (script::parseMeta(src).module != modulePass) return;
             if (!g_scripts->set(n, src, st))
-              logf("scripts: %s not restored (limit %d reached)", n.c_str(), g_cfg.scriptLimit);
+              logf("scripts: %s not restored (%s)", n.c_str(), g_scripts->lastRefusal().c_str());
           });
     }
     if (g_scripts->count()) {
@@ -551,7 +556,7 @@ void setup() {
   g_periphery.setButtonHook([](int btn) {
     static const char* kBtnNames[3] = {"left", "select", "right"};
     if (g_scripts && btn >= 0 && btn < 3)
-      g_scripts->handleButton(g_engine->currentAppId(), kBtnNames[btn]);
+      return g_scripts->handleButton(g_engine->currentAppId(), kBtnNames[btn]);
     return false;
   });
   g_display->setPublisher(publisher);
@@ -634,37 +639,6 @@ void loop() {
   g_engine->tick(now);
   probe::report("engine", 256);
   probe::begin();
-
-  // Scheduled matrix power off/on. Only acts when the clock is synced (year >= 2000) and the
-  // configured minute matches the wall-clock minute. A value of -1 disables that transition.
-  {
-    time_t nowT = time(nullptr);
-    struct tm tmv;
-    localtime_r(&nowT, &tmv);
-    if (tmv.tm_year > 100) {
-      const int curMin = tmv.tm_hour * 60 + tmv.tm_min;
-      if (g_cfg.powerOffHour >= 0 &&
-          curMin == g_cfg.powerOffHour * 60 + g_cfg.powerOffMinute) {
-        g_engine->state().runtime().matrixOff = true;
-      }
-      if (g_cfg.powerOnHour >= 0 &&
-          curMin == g_cfg.powerOnHour * 60 + g_cfg.powerOnMinute) {
-        g_engine->state().runtime().matrixOff = false;
-      }
-    }
-  }
-
-  // Light-based power control: bright enough turns the matrix on, too dark turns it off.
-  // The thresholds are lightLevel percent (0-100); -1 disables that transition.
-  {
-    const float level = g_engine->state().runtime().lightLevel;
-    if (g_cfg.lightOnThreshold >= 0 && level > g_cfg.lightOnThreshold) {
-      g_engine->state().runtime().matrixOff = false;
-    }
-    if (g_cfg.lightOffThreshold >= 0 && level < g_cfg.lightOffThreshold) {
-      g_engine->state().runtime().matrixOff = true;
-    }
-  }
 
   {
     RenderCtx sctx;

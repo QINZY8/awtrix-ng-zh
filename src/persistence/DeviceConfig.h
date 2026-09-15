@@ -47,6 +47,7 @@ struct DeviceConfig {
   int panels = 1;
   PanelStart panelStart = PanelStart::TopLeft;
   Wiring panelWiring = Wiring::Rows;
+  PanelColorOrder panelColorOrder = PanelColorOrder::Grb;
   bool panelSerpentine = true;
   bool panelChainReverse = false, panelChainSerpentine = false;
   bool mirror = false, rotate = false, swapButtons = false;
@@ -66,8 +67,6 @@ struct DeviceConfig {
   int lightOffThreshold = -1;   // lightLevel below this turns the matrix off
 
   bool scriptingEnabled = true;
-  int scriptLimit = 16;
-  int scriptMaxBytes = 16384;
 
   // Random app rotation order (Display -> App loop).
   bool randomAppOrder = false;
@@ -88,6 +87,8 @@ struct DeviceConfig {
   int pinI2sBclk = pins::activeProfile().defaults.i2sBclk;
   int pinI2sLrclk = pins::activeProfile().defaults.i2sLrclk;
   int pinI2sDout = pins::activeProfile().defaults.i2sDout;
+  int pinI2sMclk = pins::activeProfile().defaults.i2sMclk;
+  int pinAmpEnable = pins::activeProfile().defaults.ampEnable;
 
   void load();
   void save() const;
@@ -100,6 +101,7 @@ struct DeviceConfig {
     l.panels = panels;
     l.panelStart = panelStart;
     l.panelWiring = panelWiring;
+    l.panelColorOrder = panelColorOrder;
     l.panelSerpentine = panelSerpentine;
     l.panelChainReverse = panelChainReverse;
     l.panelChainSerpentine = panelChainSerpentine;
@@ -116,6 +118,7 @@ struct DeviceConfig {
     p.i2cSda = pinI2cSda; p.i2cScl = pinI2cScl;
     p.dfRx = pinDfRx; p.dfTx = pinDfTx;
     p.i2sBclk = pinI2sBclk; p.i2sLrclk = pinI2sLrclk; p.i2sDout = pinI2sDout;
+    p.i2sMclk = pinI2sMclk; p.ampEnable = pinAmpEnable;
     p.dfplayerEnabled = dfplayer;
     return p;
   }
