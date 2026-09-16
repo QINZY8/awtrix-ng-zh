@@ -28,8 +28,8 @@ struct DeviceConfig {
   std::string haPrefix = "homeassistant";
 
   std::string ntpServer = "pool.ntp.org";
-  std::string tz = "CET-1CEST,M3.5.0,M10.5.0/3";
-  std::string tzName = "Europe/Berlin";
+  std::string tz = "CST-8";
+  std::string tzName = "Asia/Shanghai";
 
   std::string hostname;
   int webPort = 80;
@@ -46,7 +46,7 @@ struct DeviceConfig {
   int panelWidth = 32;
   int panels = 1;
   PanelStart panelStart = PanelStart::TopLeft;
-  Wiring panelWiring = Wiring::Rows;
+  Wiring panelWiring = Wiring::Columns;
   PanelColorOrder panelColorOrder = PanelColorOrder::Grb;
   bool panelSerpentine = true;
   bool panelChainReverse = false, panelChainSerpentine = false;

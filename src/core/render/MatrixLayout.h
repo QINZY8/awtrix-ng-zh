@@ -40,7 +40,7 @@ struct MatrixLayout {
   int panelWidth = 32;
   int panels = 1;
   PanelStart panelStart = PanelStart::TopLeft;
-  Wiring panelWiring = Wiring::Rows;
+  Wiring panelWiring = Wiring::Columns;
   PanelColorOrder panelColorOrder = PanelColorOrder::Grb;
   bool panelSerpentine = true;
   bool panelChainReverse = false;
