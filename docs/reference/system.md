@@ -191,7 +191,7 @@ See [MQTT topics](mqtt.md) and [Home Assistant](../guides/home-assistant.md).
 
 | Key | Type | Range | Default | Effect | Reboot |
 |---|---|---|---|---|---|
-| `ntpServer` | string | - | `"pool.ntp.org"` | NTP host. Applied immediately - the sync is re-armed against the new server on write. | no |
+| `ntpServer` | string | - | `"ntp.aliyun.com"` | NTP host. Applied immediately - the sync is re-armed against the new server on write. | no |
 | `tz` | string | POSIX TZ | `"CET-1CEST,M3.5.0,M10.5.0/3"` | POSIX timezone string (Central Europe with DST). This is the setting AWTRIX runs on. Applied immediately. Free text - **not validated**. An invalid string does not error, it just gives you the wrong time. | no |
 | `tzName` | string | IANA zone | `"Europe/Berlin"` | The zone `tz` was picked from, e.g. `America/New_York`. Label only - AWTRIX never reads it; the web UI uses it to show the city back. | no |
 

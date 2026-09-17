@@ -27,7 +27,7 @@ struct DeviceConfig {
   bool haDiscovery = false;
   std::string haPrefix = "homeassistant";
 
-  std::string ntpServer = "pool.ntp.org";
+  std::string ntpServer = "ntp.aliyun.com";
   std::string tz = "CST-8";
   std::string tzName = "Asia/Shanghai";
 

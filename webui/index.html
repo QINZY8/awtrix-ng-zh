@@ -1940,7 +1940,7 @@ const SYSF={
  mqttPrefix:F('mqtt','text','Topic prefix|Topic-Präfix|主题前缀','Empty = device ID.|Leer = Geräte-ID.|留空 = 设备 ID。'),
  haDiscovery:F('mqtt','toggle','HA discovery|HA-Discovery|HA 自动发现','Announce the device to Home Assistant.|Gerät bei Home Assistant anmelden.|向 Home Assistant 宣告此设备。'),
  haPrefix:F('mqtt','text','HA prefix|HA-Präfix|HA 前缀','Empty = homeassistant.|Leer = homeassistant.|留空 = homeassistant。'),
- ntpServer:F('time','text','NTP server|NTP-Server|NTP 服务器','Time source. Default: pool.ntp.org.|Zeitquelle. Standard: pool.ntp.org.|时间源。默认：pool.ntp.org。'),
+ ntpServer:F('time','text','NTP server|NTP-Server|NTP 服务器','Time source. Default: ntp.aliyun.com.|Zeitquelle. Standard: ntp.aliyun.com.|时间源。默认：ntp.aliyun.com。'),
  tzName:F('time','tz','Timezone|Zeitzone|时区','Local time of AWTRIX. Daylight saving switches automatically.|Lokale Uhrzeit von AWTRIX. Sommer-/Winterzeit schaltet automatisch.|AWTRIX 的本地时间。夏令时自动切换。',
    {derive:v=>({tz:TZRULE.get(v)||'UTC0'})}),
  tz:F('hidden','text','Timezone rule|Zeitzonen-Regel|时区规则',''),

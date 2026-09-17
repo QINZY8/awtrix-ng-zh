@@ -1608,7 +1608,7 @@ Behaviour to know:
 | `mqttPrefix` | string | `""` | empty falls back to the device uid |
 | `haDiscovery` | boolean | `false` | Home Assistant auto-discovery |
 | `haPrefix` | string | `"homeassistant"` | |
-| `ntpServer` | string | `"pool.ntp.org"` | |
+| `ntpServer` | string | `"ntp.aliyun.com"` | |
 | `tz` | string | `"CET-1CEST,M3.5.0,M10.5.0/3"` | POSIX TZ string, daylight-saving rules included |
 | `tzName` | string | `"Europe/Berlin"` | IANA zone `tz` was picked from; display only |
 | `hostname` | string | `""` | empty becomes `awtrixng-<uid>` |

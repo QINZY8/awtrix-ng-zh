@@ -2188,7 +2188,7 @@ components:
         haDiscovery: { type: boolean, default: false, description: Home Assistant auto-discovery }
         haPrefix: { type: string, default: homeassistant }
         # --- time ---
-        ntpServer: { type: string, default: pool.ntp.org, description: "Applied immediately; the sync is re-armed on write." }
+        ntpServer: { type: string, default: ntp.aliyun.com, description: "Applied immediately; the sync is re-armed on write." }
         tz: { type: string, default: "CET-1CEST,M3.5.0,M10.5.0/3", description: "POSIX TZ string, daylight-saving rules included. Applied immediately, no reboot." }
         tzName: { type: string, default: "Europe/Berlin", description: "IANA zone tz was picked from. Never read by the firmware; the web UI shows the city back from it." }
         # --- identity / web / auth ---
