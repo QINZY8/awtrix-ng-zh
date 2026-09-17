@@ -11,7 +11,7 @@ struct LightConfig {
   float gamma = 2.2f;
   bool onGround = false;
   uint8_t minBrightness = 10;
-  uint8_t maxBrightness = 100;
+  uint8_t maxBrightness = 150;
 };
 
 float lightLevelFromRaw(uint16_t raw, const LightConfig& cfg);
