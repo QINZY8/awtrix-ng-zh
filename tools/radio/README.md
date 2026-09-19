@@ -112,3 +112,87 @@ for them. Use a provincial/city station instead.
   means the Wi-Fi cannot keep up.
 - `lhttp.qingting.fm` is HTTP only. There is no HTTPS endpoint, so no TLS
   handshake is needed and no extra heap is consumed.
+
+## Why the Qingting stations stutter
+
+Measured over several minutes per station, the Qingting FM endpoints deliver
+about **9600 B/s** against the **8000 B/s** a 64 kbit/s stream needs to play.
+That is enough on average, but delivery dips below 8000 B/s for **18-22% of
+seconds**, and the dips last long enough to drain the input buffer.
+
+The chain is:
+
+```
+delivery dips below 8000 B/s
+  -> the 64 KB input buffer drains (it covers 8.2 s of outage at 64 kbit/s)
+  -> the audio task finds an empty buffer and polls the socket every 5 ms
+     (src/system/AudioOutEsp32.cpp, the `input.size() == consumed` branch)
+  -> that polling contends with the render loop for the network stack and PSRAM
+  -> fps falls from 42 to about 30
+  -> the matrix visibly stutters
+```
+
+The fps drop is reproducible on any stream once the buffer empties, so it is a
+consequence of the source, not of the device:
+
+| Stream | fps with buffer > 16 KB | fps with buffer <= 16 KB |
+|---|---|---|
+| SomaFM (delivers 15308 B/s) | 42.0 | 31.1 |
+| 南通交通 (delivers 9636 B/s) | 41.5 | 29.7 |
+
+### Bitrate choice
+
+A lower bitrate is better here, because the buffer covers more seconds of
+outage. A 128 kbit/s stream needs 16000 B/s and so gets only 4.1 s of cover from
+the same 64 KB, while a 64 kbit/s stream gets 8.2 s:
+
+| Stream | needed | delivered | below need | buffer cover |
+|---|---|---|---|---|
+| 镇江交通 64k | 8000 B/s | 9611 B/s | 18% | **8.2 s** |
+| 南通交通 64k | 8000 B/s | 9603 B/s | 22% | **8.2 s** |
+| SomaFM Groove 128k | 16000 B/s | 17138 B/s | 50% | 4.1 s |
+| RadioParadise 128k | 16000 B/s | 16833 B/s | 75% | 4.1 s |
+
+### Brownout
+
+A `resetReason` of `brownout` was observed while the radio played at brightness
+200. The panel is the largest current draw and the supply has little headroom,
+so playback plus a bright panel can reset the device. Keeping the brightness
+well below its maximum avoids it.
+
+### What cannot be fixed on the device
+
+The source under-delivers. The buffer buys time but cannot create data. A
+station that streams evenly, or a local relay, is the only real fix.
+
+## Tools in this folder
+
+| Script | Purpose |
+|---|---|
+| `radio_probe.py` | probe a candidate list, verdict per URL |
+| `radio_probe_cn.py` | same, wider Chinese list |
+| `radio_verify.py` | write a list and play every entry |
+| `radio_set_cn.py` | write the verified Chinese list |
+| `radio_play_check.py` | play one station, print counters |
+| `radio_check_names.py` | report station names with odd characters |
+| `radio_stutter.py` | sample counters to characterise stutter |
+| `radio_netrate.py` | measure delivered bytes/s and gaps |
+| `radio_bitrate.py` | compare bitrate endpoints of one station |
+| `radio_ratewatch.py` | per-second delivery rate |
+| `radio_connwatch.py` | detect server stalls and closes |
+| `radio_fps.py` | sample fps next to the audio counters |
+| `radio_analyse.py` | the arithmetic behind the buffer and DMA sizes |
+| `radio_streamrate.py` | decode the stream, check audio vs wall time |
+| `radio_delivery.py` | long-window delivered rate and deficit |
+| `radio_rank.py` | rank stations by delivery steadiness |
+| `radio_serial.py` | measure one station with no competing traffic |
+| `radio_device_rank.py` | play each station, count underruns and low-fps seconds |
+| `radio_report.py` | print the audio settings and buffer parameters in force |
+| `radio_meta_test.py` | compare fps with radioMeta on and off |
+| `radio_reset.py` | dump device facts including resetReason |
+| `radio_brownout.py` | watch for brownout resets while playing |
+| `radio_compare.py` | Chinese vs international stream stability |
+| `radio_correlate.py` | prove the fps drop tracks the buffer level |
+| `radio_best.py` | find the stream with the best rate/cover trade-off |
+| `radio_tune.py` | apply the stutter-mitigation settings |
+| `radio_apply.py` | final settings, with the reasoning printed |
