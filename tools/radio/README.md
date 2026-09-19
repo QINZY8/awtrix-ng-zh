@@ -165,6 +165,67 @@ well below its maximum avoids it.
 The source under-delivers. The buffer buys time but cannot create data. A
 station that streams evenly, or a local relay, is the only real fix.
 
+## Distortion (crackle) on the speaker
+
+The crackle is **not** in the digital path. Every stage before the amplifier is
+either clamped or attenuating:
+
+| Stage | What it does | Can it clip? |
+|---|---|---|
+| MP3 decode | `Mp3Decoder::synthesise()` scales to int16 and clamps to [-32768, 32767] | no, already clamped |
+| Volume gain | `writeDecodedFrame()` multiplies by `gain/100`, only when `gain < 100` | no, an attenuation in int32 |
+| I2S framing | 16-bit, `RIGHT_LEFT` for stereo | no, matches the decoder |
+| DMA queue | 8 x 512 frames, `i2s_write` blocks until there is room | no, a starved queue is a gap |
+
+So the crackle comes from the analogue side. Two causes, told apart by symptom:
+
+### Amplifier gain too high for the speaker
+
+- Constant, tracks the music's loudness
+- Worst on bass-heavy passages
+- **Fix: the MAX98357A GAIN pin**
+
+The breakout sets its gain by strapping GAIN:
+
+| GAIN pin | Gain |
+|---|---|
+| to GND | 3 dB (quietest) |
+| floating | 9 dB (default on most breakouts) |
+| to VDD | 12 dB |
+| to VDD via 100k | 15 dB (loudest) |
+
+Moving GAIN towards GND costs nothing digitally: `radioVolume` stays where it
+is, so no resolution is lost.
+
+### Supply sag under load
+
+- Appears in bursts, often with the panel lit
+- Can accompany a `brownout` reset
+- **Fix: a bigger 5 V supply, and decoupling at the amplifier**
+
+The MAX98357A and the LED matrix share the 5 V rail. A brownout reset was
+observed at brightness 200 during playback, which means the rail was already
+marginal. Add a **1000 uF electrolytic across 5 V/GND at the amplifier**, and a
+**100 nF ceramic** next to it for the high frequencies.
+
+### Speaker power rating
+
+A MAX98357A delivers about 3 W into 4 ohm at 5 V. A small speaker rated below
+that will distort on bass no matter what the gain is set to. A 4 ohm speaker
+rated 3 W or more, or an 8 ohm one (which halves the power), is the safe choice.
+
+### Checking which cause it is
+
+Play a bass-heavy passage and watch the crackle:
+
+- **crackle follows the music, always present** -> amplifier gain, move the GAIN pin
+- **crackle comes in bursts, worse when the panel is bright** -> supply sag
+- **crackle only at high `radioVolume`** -> the source is already near full
+  scale; lower `radioVolume`, or move the GAIN pin
+
+The digital volume is an attenuation only, so lowering `radioVolume` never
+causes clipping - it can only reduce it.
+
 ## Tools in this folder
 
 | Script | Purpose |
@@ -196,3 +257,9 @@ station that streams evenly, or a local relay, is the only real fix.
 | `radio_best.py` | find the stream with the best rate/cover trade-off |
 | `radio_tune.py` | apply the stutter-mitigation settings |
 | `radio_apply.py` | final settings, with the reasoning printed |
+| `radio_levels.py` | report the stream's bitrate and sample rate |
+| `radio_channels.py` | channel mode and sample rate per station |
+| `radio_rate_switch.py` | check whether a stream changes sample rate mid-play |
+| `radio_volume_test.py` | play at several volumes, watch the counters |
+| `radio_bright_test.py` | play at several brightness levels, watch for brownout |
+| `radio_distortion.py` | walk the signal path and mark where clipping can occur |

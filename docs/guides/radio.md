@@ -27,6 +27,14 @@ frame - a UDA1334A or a PCM5102A work the same way.
 Plus power and ground. The MAX98357A drives a speaker directly; it needs no
 amplifier of its own.
 
+Use a **4-8 ohm speaker rated at 3 W or more**. The MAX98357A delivers about
+3 W into 4 ohm at 5 V, so a smaller speaker distorts on bass no matter what the
+volume is set to. The breakout's own gain is set by its **GAIN** pin - 3 dB to
+GND, 9 dB floating, 12 dB to VDD, 15 dB to VDD through 100k. If the sound
+crackles, move GAIN towards GND before touching `radioVolume`: the digital
+volume only ever attenuates, so it cannot clip, and lowering it costs loudness
+without fixing a gain that is too high.
+
 Some boards have two more inputs. Both settings are off by default and need
 the three pins above:
 
@@ -135,6 +143,12 @@ AWTRIX shows it only when it actually changes.
 Volume is `radioVolume`, `0`–`100`. Stored [MP3s](sounds.md#mp3s) come out of the same amplifier
 but have their own `mp3Volume`, so a station turned down to sit in the background does not also
 turn down your doorbell. See [Sound](../reference/settings.md#sound).
+
+The digital volume only ever **attenuates**: it scales the decoded samples down before they reach
+the I2S driver, and the decoder has already clamped them to the 16-bit range. It therefore cannot
+introduce clipping, and turning it up cannot make a clean stream distort. If the sound crackles,
+the cause is on the analogue side - the amplifier's GAIN pin, the speaker's power rating, or a 5 V
+rail sagging under the panel's load. See [Wiring](#what-you-need).
 
 The `soundEnabled` switch does **not** touch the radio. It mutes one-shot sounds - melodies, MP3s,
 a notification's own melody - because those arrive uninvited, while a station is something you

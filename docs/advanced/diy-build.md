@@ -479,6 +479,18 @@ Two optional pins go with it. A DAC with an **MCLK** input takes `pinI2sMclk`. A
 an enable input - **CTRL** on an NS4168, **SD** on a MAX98357A - takes `pinAmpEnable`, which
 AWTRIX holds high from startup so the amplifier plays.
 
+Pick the speaker for the amplifier, not the other way round. A MAX98357A delivers about **3 W into
+4 ohm** at 5 V, so a speaker rated below that distorts on bass whatever the volume is set to; an
+8 ohm speaker halves the power and is the safer choice for a small one. The breakout's gain is
+strapped on its **GAIN** pin - 3 dB to GND, 9 dB floating, 12 dB to VDD, 15 dB to VDD through
+100k - and that pin is the right knob for a crackle, because the digital volume only attenuates.
+
+The amplifier shares the 5 V rail with the panel, and it draws its current in bursts that follow
+the music. Put a **1000 uF electrolytic across 5 V/GND at the amplifier**, with a **100 nF
+ceramic** beside it, and keep its supply wires short and separate from the panel's. A rail that
+sags under a bass note clips the amplifier's output, which sounds like a crackle and can also
+reset the board - see [section 4](#4-power-the-panel-first).
+
 ---
 
 ## 6. Describe the panel
