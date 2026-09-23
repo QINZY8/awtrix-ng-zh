@@ -1714,7 +1714,7 @@ const FIELDS={
  transitionDirection:F('apps','select','Transition direction|Übergangsrichtung|切换方向','Flips movement for directional effects.|Kehrt die Bewegung gerichteter Effekte um.|反转方向性特效的运动。',{opt:[
    ['normal','Normal|Normal|正向'],['reverse','Reverse|Umgekehrt|反向']]}),
  blockNavigation:F('apps','toggle','Block buttons|Tasten sperren|锁定按键','Ignore buttons and API for app switching.|App-Wechsel per Taste und API ignorieren.|忽略按键和 API 的应用切换。'),
- randomAppOrder:F('apps','toggle','Random order|Zufällige Reihenfolge|随机顺序','Show apps in a random order instead of the saved one.|Apps in zufälliger Reihenfolge statt der gespeicherten anzeigen.|以随机顺序显示应用，而非保存的顺序。'),
+ randomAppOrder:F('apps','toggle','Random order|Zufällige Reihenfolge|随机顺序','Show apps in a random order instead of the saved one.|Apps in zufälliger Reihenfolge statt der gespeicherten anzeigen.|以随机顺序显示应用，而非保存的顺序。',{api:'system'}),
  timeMode:F('clock','select','Clock layout|Uhr-Layout|时钟布局','What the clock app draws.|Was die Uhr-App zeichnet.|时钟应用绘制的内容。',{opt:[
    [0,'Time only|Nur Uhrzeit|仅时间'],[1,'Calendar, weekday bar below|Kalenderblatt, Wochentage unten|日历，下方星期条'],
    [2,'Calendar, weekday bar on top|Kalenderblatt, Wochentage oben|日历，上方星期条'],[3,'Spiral calendar, weekday below|Ringkalender, Wochentage unten|螺旋日历，下方星期条'],
@@ -3870,13 +3870,22 @@ async function viewDisplay(view){
       if(!S.aud)readAudioCaps(caps);
     }
     data=mergeDisplayData((await api('/api/v1/settings')).data,(await api('/api/v1/display')).data);
+    // A few keys here live on /api/v1/system - the random order switch, for one - and the
+    // rotation is where they belong. Pull them across so the group renders and the save
+    // below can send them back where they came from.
+    const sysKeys=Object.keys(FIELDS).filter(k=>FIELDS[k].api==='system');
+    if(sysKeys.length){
+      const sys=(await api('/api/v1/system')).data;
+      sysKeys.forEach(k=>{if(k in sys)data[k]=sys[k];});
+    }
   }catch(e){view.append(el('div',{class:'card wide'},t('neterr')));return;}
   const page=settingsPage(view,async(payload)=>{
-    const disp={},set={};
+    const disp={},set={},cfg={};
     for(const[k,v]of Object.entries(payload)){
       if(k==='power')disp.power=v;
       else if(k==='overlay')disp.overlay=v===''?null:v;
       else if(k==='overlaySpeed')disp.overlaySettings={speed:v/100};
+      else if(FIELDS[k]&&FIELDS[k].api==='system')cfg[k]=v;
       else{
         const n=NESTED.find(p=>k.startsWith(p+'.'));
         if(n)(set[n]||(set[n]={}))[k.slice(n.length+1)]=v;
@@ -3885,6 +3894,7 @@ async function viewDisplay(view){
     }
     if(Object.keys(set).length)await req('PATCH','/api/v1/settings',set);
     if(Object.keys(disp).length)await req('PATCH','/api/v1/display',disp);
+    if(Object.keys(cfg).length)await req('PUT','/api/v1/system',cfg);
   },async()=>{});
   renderSettingsInto(page,data,FIELDS,SET_GROUPS);
   advancedSection(page,data,FIELDS,SOUND_KEYS);
