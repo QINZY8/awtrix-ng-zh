@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <new>
 #include <string>
 
 #include "core/CoreEngine.h"
@@ -15,8 +16,6 @@ using render::drawLinkStatus;
 using render::pulse;
 
 namespace {
-// Icons are 8 px wide; text starts one column further right.
-constexpr int kIconWidth = 9;
 const std::string kNoIcon;
 constexpr long kDefaultTransMs = 1000;
 constexpr long kIconRetryMs = 5000;
@@ -37,29 +36,110 @@ const AppSpec* RenderPipeline::pageSpec(const std::string& id, bool isNotif) con
 void RenderPipeline::loadIcon(PageSlot& slot, const std::string& pageId, const AppSpec* spec,
                               int64_t nowMs) {
   const std::string& wanted = spec ? spec->icon : kNoIcon;
-  const bool same = slot.pageId == pageId && slot.iconId == wanted;
-  if (!slot.icon || (same && (slot.valid || wanted.empty() || nowMs < slot.retryAtMs))) return;
+  const uint32_t generation = iconGeneration_.load();
+  const bool reloadAll = slot.pageId != pageId || slot.iconGeneration != generation;
+  if (reloadAll) {
+    // Release the outgoing page before opening any incoming image, so its resident pixels
+    // cannot force an otherwise unnecessary allocation failure and five-second retry.
+    slot.placedIcons.reset();
+    slot.placedIconCount = 0;
+    slot.placedRetryAtMs = 0;
+  }
+  const bool same = !reloadAll && slot.iconId == wanted;
   slot.pageId = pageId;
-  slot.iconId = wanted;
-  slot.valid = false;
-  slot.icon->clear();
-  if (!wanted.empty()) slot.valid = slot.icon->begin(wanted);
-  slot.retryAtMs = nowMs + kIconRetryMs;
+  slot.iconGeneration = generation;
+  if (slot.icon &&
+      !(same && (slot.valid || slot.missing || wanted.empty() || nowMs < slot.retryAtMs))) {
+    slot.iconId = wanted;
+    slot.valid = slot.missing = false;
+    slot.icon->clear();
+    if (!wanted.empty()) {
+      const IconLoad result = slot.icon->begin(wanted, width_, height_);
+      slot.valid = result == IconLoad::kGood;
+      slot.missing = result == IconLoad::kMissing;
+      iconLoadedThisFrame_ = true;
+    }
+    slot.retryAtMs = nowMs + kIconRetryMs;
+  }
+  loadPlacedIcons(slot, spec, nowMs);
+}
+
+void RenderPipeline::loadPlacedIcons(PageSlot& slot, const AppSpec* spec, int64_t nowMs) {
+  const std::size_t count = spec ? std::min(spec->extras().icons.size(), kMaxPlacedIcons) : 0;
+  slot.iconsPending = false;
+  if (count != slot.placedIconCount) {
+    slot.placedIcons.reset();
+    slot.placedIconCount = 0;
+  }
+  if (count == 0 || !slot.icon) return;
+  if (!slot.placedIcons) {
+    if (nowMs < slot.placedRetryAtMs) return;
+    slot.placedIcons.reset(new (std::nothrow) PlacedIcon[count]);
+    if (!slot.placedIcons) {
+      slot.placedRetryAtMs = nowMs + kIconRetryMs;
+      return;
+    }
+    slot.placedIconCount = count;
+  }
+  for (std::size_t i = 0; i < count; ++i) {
+    auto& icon = slot.placedIcons[i];
+    const auto& wanted = spec->extras().icons[i];
+    icon.x = wanted.x;
+    icon.y = wanted.y;
+    if (icon.iconId != wanted.icon) {
+      icon.iconId = wanted.icon;
+      icon.valid = icon.missing = false;
+      icon.retryAtMs = 0;
+      if (icon.player) icon.player->clear();
+    }
+    if (icon.valid || icon.missing || nowMs < icon.retryAtMs) continue;
+    if (iconLoadedThisFrame_) {
+      slot.iconsPending = true;
+      continue;
+    }
+    if (!icon.player) icon.player = slot.icon->create();
+    if (icon.player) {
+      const IconLoad result = icon.player->begin(icon.iconId, width_, height_);
+      icon.valid = result == IconLoad::kGood;
+      icon.missing = result == IconLoad::kMissing;
+      iconLoadedThisFrame_ = true;
+    }
+    icon.retryAtMs = nowMs + kIconRetryMs;
+  }
+}
+
+void RenderPipeline::advanceIcons(PageSlot& slot, int64_t nowMs) {
+  if (slot.iconsPending) return;
+  if (slot.icon) slot.icon->advance(nowMs);
+  for (std::size_t i = 0; i < slot.placedIconCount; ++i) {
+    auto& icon = slot.placedIcons[i];
+    if (icon.valid) icon.player->advance(nowMs);
+  }
 }
 
 bool RenderPipeline::iconIsFullScreen(const PageSlot* slot, int canvasWidth) const {
   return slot && slot->valid && slot->icon && slot->icon->width() >= canvasWidth;
 }
 
+// The columns an icon keeps free of text: its own width plus the page's gap. A missing or
+// full-screen icon keeps none.
+int RenderPipeline::iconColumn(const AppSpec& spec, const PageSlot* slot) const {
+  if (spec.icon.empty() || !slot || !slot->valid || !slot->icon || iconIsFullScreen(slot, width_))
+    return 0;
+  return std::min(slot->icon->width() + spec.iconGap, width_);
+}
+
 // How far left the icon is dragged by scrolling text. The icon rides along with the text until it
-// has been pushed a full icon width off the left edge, then stays there.
+// and its gap have been pushed off the left edge, then stays there.
 int RenderPipeline::iconShift(const AppSpec& spec, const PageSlot& slot) const {
-  if (spec.iconMode == IconMode::Fixed || spec.icon.empty()) return 0;
-  if (slot.iconPushed && spec.iconMode == IconMode::PushOnce) return -kIconWidth;
+  if (spec.iconMode == IconMode::Fixed) return 0;
+  const int column = iconColumn(spec, &slot);
+  if (column == 0) return 0;
+  if (slot.iconPushed && spec.iconMode == IconMode::PushOnce) return -column;
   const float tx = slot.scroll.x();
-  if (tx >= kIconWidth) return 0;
-  const int shift = static_cast<int>(std::floor(tx)) - kIconWidth;
-  return std::max(shift, -kIconWidth);
+  if (tx >= column) return 0;
+  const int shift = static_cast<int>(std::floor(tx)) - column;
+  return std::max(shift, -column);
 }
 
 void RenderPipeline::renderPage(Canvas& dst, const std::string& id, int64_t nowMs, bool isNotif,
@@ -79,9 +159,12 @@ void RenderPipeline::renderPage(Canvas& dst, const std::string& id, int64_t nowM
     // An icon as wide as the panel is treated as the background instead of a left-hand tile, so it
     // reserves no columns and the text draws straight on top of it.
     const bool fullScreen = iconIsFullScreen(slot, dst.width());
+    const int column = iconColumn(spec, slot);
     render::SpecRender r;
     r.defaultTextColor = s.textColor;
-    r.iconWidth = (spec.icon.empty() || !(slot && slot->valid) || fullScreen) ? 0 : kIconWidth;
+    r.iconWidth = column ? slot->icon->width() : 0;
+    r.iconGap = column - r.iconWidth;
+    r.textClipLeft = column ? column + iconShift(spec, *slot) : 0;
     r.backgroundDrawn = fullScreen;
     r.nowMs = nowMs;
     r.textX = slot ? slot->scroll.x() : 0.0f;
@@ -97,6 +180,12 @@ void RenderPipeline::renderPage(Canvas& dst, const std::string& id, int64_t nowM
     render::renderSpec(dst, spec, fontFor(&spec), r);
     if (r.iconWidth && slot && slot->valid)
       slot->icon->blit(dst, spec.iconOffsetX + iconShift(spec, *slot));
+    if (slot) {
+      for (std::size_t i = 0; i < slot->placedIconCount; ++i) {
+        const auto& icon = slot->placedIcons[i];
+        if (icon.valid) icon.player->blit(dst, icon.x, icon.y);
+      }
+    }
     drawOverlay(spec.overlay, es);
   };
 
@@ -131,25 +220,23 @@ const GfxFont& RenderPipeline::fontFor(const AppSpec* spec) const {
 }
 
 render::ScrollLayout RenderPipeline::scrollLayoutFor(const AppSpec* spec, int canvasWidth,
-                                                    bool iconReservesColumn) const {
+                                                    int column) const {
   render::ScrollLayout layout;
   layout.canvasWidth = canvasWidth;
   layout.availWidth = canvasWidth;
   if (!spec) return layout;
 
   const Settings& s = d_.engine->state().settings();
-  const bool hasIcon = !spec->icon.empty() && iconReservesColumn;
   layout.text = render::textMetricsFor(*spec, fontFor(spec), s.uppercase);
-  layout.startX = hasIcon ? kIconWidth : 0;
-  layout.availWidth = canvasWidth - (hasIcon ? kIconWidth : 0);
+  layout.startX = column;
+  layout.availWidth = canvasWidth - column;
   layout.textOffset = spec->textOffsetX;
   return layout;
 }
 
 void RenderPipeline::applyScroll(PageSlot& slot, const AppSpec* spec, int64_t nowMs) {
-  const bool iconReservesColumn = slot.valid && !iconIsFullScreen(&slot, width_);
   slot.scroll.set(spec ? spec->scroll : ScrollSpec{}, d_.engine->state().settings().scrollDefaults,
-                  scrollLayoutFor(spec, width_, iconReservesColumn), nowMs);
+                  scrollLayoutFor(spec, width_, spec ? iconColumn(*spec, &slot) : 0), nowMs);
 }
 
 int RenderPipeline::scrollParkAfter(const AppSpec* spec, bool isNotif) const {
@@ -218,6 +305,7 @@ void RenderPipeline::drawIndicators(Canvas& out, int64_t nowMs) const {
 }
 
 void RenderPipeline::renderFrame(Canvas& out, int64_t nowMs) {
+  iconLoadedThisFrame_ = false;
   const Settings& s = d_.engine->state().settings();
   const bool isNotif = d_.engine->hasNotification();
   // Notifications get a synthetic page id: the \x01 prefix cannot collide with a real app name,
@@ -240,7 +328,7 @@ void RenderPipeline::renderFrame(Canvas& out, int64_t nowMs) {
   const AppSpec* spec = pageSpec(renderId, isNotif);
   advanceScroll(slotA_, spec, nowMs, scrollParkAfter(spec, isNotif));
 
-  if (slotA_.icon) slotA_.icon->advance(nowMs);
+  advanceIcons(slotA_, nowMs);
 
   AppHost& ah = d_.engine->appHost();
   const bool inTransition =
@@ -257,7 +345,7 @@ void RenderPipeline::renderFrame(Canvas& out, int64_t nowMs) {
       slotB_.iconPushed = false;
     }
     advanceScroll(slotB_, toSpec, nowMs, 0);
-    if (slotB_.icon) slotB_.icon->advance(nowMs);
+    advanceIcons(slotB_, nowMs);
 
     if (!transA_) {
       transA_.reset(new Canvas(width_, height_));
@@ -276,7 +364,15 @@ void RenderPipeline::renderFrame(Canvas& out, int64_t nowMs) {
   } else {
     transA_.reset();
     transB_.reset();
+    if (slotB_.icon && (!slotB_.pageId.empty() || !slotB_.iconId.empty() || slotB_.valid))
+      slotB_.icon->clear();
     slotB_.pageId.clear();
+    slotB_.iconId.clear();
+    slotB_.valid = slotB_.missing = false;
+    slotB_.retryAtMs = 0;
+    slotB_.placedIcons.reset();
+    slotB_.placedIconCount = 0;
+    slotB_.placedRetryAtMs = 0;
     renderPage(out, renderId, nowMs, isNotif, &slotA_);
   }
 

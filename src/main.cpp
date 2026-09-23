@@ -244,6 +244,7 @@ void setup() {
   g_board->begin();
   g_board->setMatrixLayout(cfg.matrixLayout());
   g_canvas = new Canvas(g_board->matrixWidth(), g_board->matrixHeight());
+  g_scriptIcon.setPanelSize(g_board->matrixWidth(), g_board->matrixHeight());
   g_power = new render::PowerAnimator(g_board->matrixWidth(), g_board->matrixHeight());
   g_audio.setTone(g_board->toneSink());
   g_audio.setTrack(g_board->trackSink());
@@ -548,6 +549,7 @@ void setup() {
   }
   g_http.setOnAssetsChanged([] {
     g_scriptIcon.invalidate();
+    if (g_pipeline) g_pipeline->invalidateIcons();
     render::clearPaletteCache();
   });
 
@@ -555,11 +557,8 @@ void setup() {
     g_disco.begin(g_net.hostname(), cfg.webPort);
     if (cfg.artnet) g_artnet.begin();
   }
-  g_periphery.setButtonHook([](int btn) {
-    static const char* kBtnNames[3] = {"left", "select", "right"};
-    if (g_scripts && btn >= 0 && btn < 3)
-      return g_scripts->handleButton(g_engine->currentAppId(), kBtnNames[btn]);
-    return false;
+  g_periphery.setButtonHook([](int btn, bool pressed) {
+    return g_scripts && g_scripts->handleButtonState(g_engine->currentAppId(), btn, pressed);
   });
   g_display->setPublisher(publisher);
   g_display->setScreen(g_canvas);

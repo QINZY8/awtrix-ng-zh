@@ -33,7 +33,10 @@ default. Never ask the user to type an API key into chat; leave a clearly marked
 1. One or two sentences on what the app will show.
 2. **One complete script** in a single `berry` code block - the whole file, from the `# @name`
    header to the final `return YourClass()`. Never an excerpt, never a `# ... rest of the code ...`
-   placeholder, never two versions to choose between.
+   placeholder, never two versions to choose between. For several requested views of one data
+   source, deliver one background reader and one script per view, each in its own complete code
+   block with an exact install name. Include any shared helper module they need. Install the
+   modules first, then the reader, then the display apps.
 3. Short installation instructions (section 13).
 4. One line naming each setting you declared, plus any assumption you made and the line holding it.
 
@@ -44,10 +47,10 @@ working panel, not a tutorial.
 
 ## 2. The hardware
 
-A single LED panel, **32 pixels wide and 8 pixels tall** - about the size of a postage stamp, one
+An LED panel, commonly **32 pixels wide and 8 pixels tall** - about the size of a postage stamp, one
 short word at a time.
 
-- `x` runs `0`–`31` from the **left**, `y` runs `0`–`7` from the **top**. `(0, 0)` is top-left; a
+- On a 32×8 panel, `x` runs `0`–`31` from the **left**, `y` runs `0`–`7` from the **top**. `(0, 0)` is top-left; a
   *larger* `y` is *lower*.
 - Never hardcode `32` or `8`. Call `width()` and `height()` - some builds run a different panel
   size, and a script that measures adapts for free.
@@ -57,8 +60,11 @@ short word at a time.
 - The app is one page in a **rotation**: other apps take turns on the same panel. It is not a
   full-screen program.
 
-The processor is an ESP32 with roughly **168 KB of free RAM for everything** - firmware, network
-stack, TLS and every script together. A typical device has a handful of scripts. Yours is a guest.
+Devices use an ESP32 or ESP32-S3. Without usable PSRAM, all scripts share a **96 KB Berry heap
+budget**; with PSRAM, the budget is larger. Read `scriptHeapPool` and `scriptHeapBudgetBytes` from
+`GET /api/v1/device` when available. Free internal RAM (`freeHeapBytes`) and optional free PSRAM
+(`psramFreeBytes`) are separate from that budget. Without device access, target the 96 KB budget.
+A typical device has a handful of scripts. Yours is a guest.
 
 ---
 
@@ -120,6 +126,7 @@ Define only the methods you need. **Every method costs memory for as long as the
 | `draw()` | **every frame (~40×/second)** while the app is on screen | **yes** |
 | `on_show()` | the app has just been rotated in | no |
 | `on_hide()` | the app has just been rotated out | no |
+| `on_button_event(btn, event)` | press, long, repeat and release for a button the app takes | no |
 | `on_button(btn)` | a button was pressed while the app is on screen; `true` consumes it | no |
 | `should_show()` | the rotation has reached the app; `false` makes it skip past | no |
 | `duration()` | the rotation has reached the app; return ms to override the dwell | no |
@@ -177,8 +184,8 @@ out for the device's global app time (7000 ms out of the box). It changes only *
 ## 5. The API
 
 Every function below is a plain global, callable from any method with no import. The modules
-`display`, `http`, `mqtt`, `music`, `re`, `rotation`, `sensor`, `settings`, `shared`, `sound` and `store` are already
-there too. Only `json`, `string`, `math` and `gc` need an `import` line at the top of the file.
+`display`, `http`, `mqtt`, `music`, `re`, `rotation`, `sensor`, `settings`, `shared`, `sound`, `store` and `timer` are already
+there too. `json`, `string`, `math`, `gc` and `modbus` need an `import` line at the top of the file.
 
 ### 5.1 Panel and drawing
 
@@ -331,11 +338,17 @@ text has to stay readable on top.
 
 ### 5.5 Icons
 
-`icon(name, x, y)` draws an **8×8 icon by name** from the device's icon folder. Give the bare name -
-no path, no extension. Animated GIFs animate on their own if you draw the same icon every frame. It
-returns `false` if the icon is unknown *or* if decoding transiently ran out of memory - one of the
-ways a memory-hungry script punishes its neighbours - so paint a fallback and the cell is never a
-hole: `if !icon(self.ic, 0, 0) rect_fill(0, 0, 8, 8, 0x222222) end`.
+`icon(name, x, y)` draws an **icon by name** from the device's icon folder, at the icon's own size:
+a JPG is 8×8, a GIF uses its own size and must fit the display. A full-width GIF at `(0, 0)`
+covers the panel and text drawn after it sits on top. Give the bare name - no path, no extension. Animated GIFs
+animate on their own if you draw the same icon every frame. It returns `false` if the icon is
+missing or cannot be displayed, so paint a fallback instead of leaving an empty space:
+`if !icon(self.ic, 0, 0) rect_fill(0, 0, 8, 8, 0x222222) end`.
+
+Call `icon()` several times for several images, each at its own `(x, y)` position. Different GIFs
+keep their own colours and animation speeds. Repeating the same name at different positions
+shows the same animation frame in each place. Up to 4 different names can be drawn per display
+frame; further names return `false`. Four 8×8 icons side by side fill a 32-pixel panel.
 
 **You cannot know which icons the user has installed**, and you cannot look an ID up. An icon name
 is a numeric ID from the icon database, and inventing one gives the user an empty cell. Three ways
@@ -390,6 +403,39 @@ Minutes need zero-padding by hand - `str(5)` is `"5"`, not `"05"`:
     var mm = m < 10 ? "0" + str(m) : str(m)
     text(4, 6, str(hour()) + ":" + mm, 0xFFFFFF)
 ```
+
+### 5.6b Timers
+
+`timer.after(ms, callback)` runs once; `timer.every(ms, callback)` repeats.
+Both return an ID or `nil` for invalid arguments or a full timer pool.
+Use integer delays from 25 to 86400000 ms. Limits: 8 timers per app, 32 total.
+`timer.cancel(id)` returns whether your own pending timer was cancelled;
+`nil`, expired IDs and other apps' IDs return `false`.
+
+Callbacks take no arguments: `timer.after(3000, / -> self.reset())`.
+They cannot draw; update members and let `draw()` render them. Register in
+`setup()`, button handlers or callbacks, never each frame. Repeating callbacks
+can cancel their own timer. Timer timing uses elapsed time, not wall-clock time.
+
+Timers run while hidden or the matrix is off. Disabled apps receive no callbacks;
+an overdue timer fires once when re-enabled, with no catch-up burst. Busy devices
+may deliver late. Saving, removing or restarting the app clears its timers;
+errors stop them. They do not persist through a reboot. Start them in `setup()`.
+
+### 5.6c Button events
+
+`on_button_event(btn, event)` receives `btn` as `left`, `select` or `right`.
+The events are `press`, `long` (once after 600 ms), `repeat` (every 150 ms after
+long), and `release`. Return `true` on `press` to capture that button and receive
+the later events. Return values for later events are ignored. If press is not
+captured, existing `on_button(btn)` and then built-in navigation handle it as
+before. Capturing select suppresses its normal dismiss and double-press actions.
+
+Only the current visible app receives events. Capture ends on switching apps,
+disabling, replacing or removing the app; no later release is delivered to that
+interaction and a held button never transfers to another app. Clear temporary
+pressed state in `on_hide()` too. Button swap/rotation settings are respected.
+Do not draw in the handler. Existing `on_button(btn)` apps need no changes.
 
 ### 5.7 HTTP
 
@@ -465,6 +511,41 @@ minute, nothing faster without a reason - and make the interval a `# @config …
 user can slow it down. The first `https://` result after a boot or Wi-Fi reconnect arrives late by
 design: requests are held for ~15 seconds while the network services settle. Show a placeholder
 until the first callback; never treat the wait as an error.
+
+### 5.7b Modbus TCP
+
+Add `import modbus`. Reads are asynchronous; each call selects its own device.
+All four functions take `(host, address, count, callback, opts?)`:
+
+- `modbus.readHoldingRegisters`: function 03, 1–125 registers.
+- `modbus.readInputRegisters`: function 04, 1–125 registers.
+- `modbus.readCoils`: function 01, 1–2000 bits.
+- `modbus.readDiscreteInputs`: function 02, 1–2000 bits.
+
+`host` is an IP address or hostname without a scheme. Addresses are zero-based,
+0–65535, and the requested range must fit. Do not guess register addresses or
+data types: ask for the device's register list. `40001` in a manual often means
+holding register address `0`, but the manual may already use zero-based addresses.
+`opts` accepts `{'port': 502, 'unit': 1}`; these are also the defaults.
+Port range: 1–65535; unit range: 0–255. Host, port, unit, register address and
+polling interval belong in `@config`; convert number settings with `int()`.
+
+The callback takes `(values, error)`: on success `error` is 0 and `values` is a
+list of unsigned 16-bit registers or bits (0/1). On failure `values` is nil;
+`error` is -1 for a rejected or failed request, or a positive Modbus exception
+code (commonly 1 unsupported function, 2 unknown address, 3 bad value, 6 busy).
+Poll from `loop()` with a deadline and a busy flag; clear the flag in the callback.
+Do not poll from `draw()` or start the next request before the previous one finishes.
+
+`modbus.int16(value)` interprets a signed 16-bit value.
+`modbus.int32(high, low)` and `modbus.float32(high, low)` combine two registers.
+Pass them in reverse order for a device that sends its low word first; apply the
+manufacturer's scale factor afterwards. Read only the registers needed. Writes
+and Modbus RTU are unavailable.
+
+For several views of one device, one headless script performs the reads and
+publishes scalar results through `shared` (5.12). Display apps need no Modbus
+import. Publish only successful readings, and check `shared.age()` in the readers.
 
 ### 5.8 MQTT
 
@@ -566,7 +647,7 @@ instant the device boots instead of `...` until the network comes up: a
 **A hard rule, not a nicety. Every value the user might want to change gets a `# @config` line.
 Never hardcode such a value, never build a settings screen of your own, never tell the user to edit
 the script.** A `# @config` line in the header turns a stored value into a real field in the web
-UI: **Apps** tab → the `⋯` menu on that app's row → **Settings**. The script reads it with
+UI: **Apps** tab → the gear button on that app's row. The script reads it with
 `store.get(key)` and nothing else.
 
 ```berry
@@ -635,7 +716,8 @@ return location
   gets at it.
 - **The cache cannot go stale.** Saving a module's settings reinstalls it and restarts every app
   that imports it, so the top-level read runs again.
-- Module settings live on the same **Apps** tab, in the modules card, same `⋯` → **Settings**.
+- Module settings live on the same **Apps** tab: use the gear button on the module's row in the
+  **Modules** card.
 - **Decide by ownership:** `@config` on the app when only that app cares, on a module when a second
   app would want the same answer (a city, a locale, an API host). When in doubt, put it on the app.
 
@@ -678,7 +760,9 @@ back rather than showing an hour-old number:
 Never assume a value is there: the publisher may not be installed, may have been removed, or may
 not have run yet. Always pass a default, or check for `nil`. **Two apps that need the same number
 should fetch it once and share it** - one polls and calls `shared.set()`, the others read: one HTTP
-buffer and one parse on the device instead of three.
+fetch and one parse instead of repeating the work. This also applies to Modbus
+and MQTT. Publish only after a successful update; republishing an old value resets
+its age. Use a headless script (5.19) if the reader itself needs no display.
 
 ### 5.12b Sensors
 
@@ -859,7 +943,7 @@ return m
 
 - The import name is the file name, so it must read as an identifier: letters, digits and `_`, not
   starting with a digit. `# @module weather` overrides it when the file is called something else.
-- Never name a module after a built-in one (`json`, `math`, `string`, `global`, `gc`, `strict`,
+- Never name a module after a built-in one (`json`, `math`, `string`, `modbus`, `global`, `gc`, `strict`,
   `os`, `sys`, `time`, `debug`, `introspect`, `solidify`) - the install is refused.
 - A module **must end with `return`**, or it installs with an error.
 - Modules may import each other, in any order.
@@ -930,8 +1014,8 @@ your own class resolve at call time, so a method may call another defined furthe
 
 ## 7. What is NOT available
 
-Importable, because they are pure computation: `string` · `json` · `math` (including `math.rand()`)
-· `gc` · `strict` · `global` - plus any module the user has installed (5.20). **Everything else
+Importable: `string` · `json` · `math` (including `math.rand()`)
+· `gc` · `strict` · `global` · `modbus` - plus any module the user has installed (5.20). **Everything else
 raises on `import`.** Specifically unavailable, and a frequent source of invented code:
 
 | Not available | Instead |
@@ -941,7 +1025,7 @@ raises on `import`.** Specifically unavailable, and a frequent source of invente
 | `open()` | nothing |
 | `print()` - exists, but writes only to the serial console | `log()`, which reaches the web UI |
 | `input()` - exists, but there is no console to type at | nothing; never call it |
-| `delay()` / `sleep()` - **no such thing** | count `loop()` calls, or use `now_ms()` / `epoch_ms()` for sub-second animation inside one frame |
+| `delay()` / `sleep()` - **no such thing** | `timer.after()` for delayed actions, `timer.every()` for recurring actions; `now_ms()` / `epoch_ms()` for animation in `draw()` |
 | a blocking HTTP call | `http.get()` with a callback |
 | a `while true` render loop | `draw()` **is** the loop; paint one frame and return |
 
@@ -962,6 +1046,7 @@ anything that waits, waits by returning and being called again.
 | Free memory while the body is collected | brings `cap` down to what is there; running out mid-body drops the response | callback gets `nil` and the real status code |
 | HTTP requests in flight | 8 per app | callback gets `nil` immediately |
 | HTTP timeout | 5 s connect, 5 s read, 30 s total | callback gets `nil` |
+| Pending timers | 8 per app, 32 total; integer delay 25–86400000 ms | `timer.after()` / `timer.every()` return `nil` for invalid arguments or a full queue |
 | MQTT subscriptions | 8 per app | further subscribes ignored |
 | MQTT messages waiting | 32, shared by every script | the oldest is dropped |
 | Chart values | 16 | extras dropped |
@@ -971,8 +1056,9 @@ anything that waits, waits by returning and being called again.
 
 **200 000 instructions is a great deal of drawing.** You will only meet that limit with an
 accidental infinite loop, never by painting a busy frame. **The heap limit is the one you can
-actually hit**: 96 KB is shared by every script, and a typical device already has several
-installed. Section 9 is how you stay a good neighbour.
+actually hit**: without PSRAM, 96 KB is shared by every script; with PSRAM, use the reported
+`scriptHeapBudgetBytes`. A typical device already has several scripts installed. Section 9 is how
+you stay a good neighbour.
 
 Any unhandled error leaves the app **stuck broken**: the panel shows `ERR:<name>` in red and the
 web UI shows the message. Nothing else on the device is affected, and saving the script again
@@ -983,8 +1069,9 @@ clears it.
 ## 9. Writing for a small heap
 
 Every script shares **one Berry heap**, capped at 96 KB on a board without PSRAM. Your app's class,
-its methods, its members and everything it allocates come out of that one pot - and so does the
-memory the firmware needs to decode an icon, hold a pushed app or complete a TLS handshake. A
+its methods, its members and everything it allocates come out of that one pot. The firmware also
+needs memory outside the Berry heap to decode icons, hold pushed apps and complete TLS handshakes.
+Without PSRAM, these allocations compete for the same underlying internal RAM. A
 greedy script does not just risk its own `ERR:`; it makes *other* apps fail to install, icons draw
 as holes and HTTPS requests fall over. So: **write the smallest thing that does the job.** In order
 of how much they matter:
@@ -1019,12 +1106,16 @@ charts take 16.
 **7. Prefer numbers to strings, and short strings to long ones.** An integer costs nothing beyond
 its slot. Store `21.5`, not `"21.5 °C"`, and never the sentence you got it out of.
 
-**8. Draw shapes rather than requiring assets.** A glyph made of `rect_fill` and `line` costs no
-memory and cannot fail; an icon needs a decode buffer a busy heap may refuse.
+**8. Use shapes for simple symbols.** A glyph made of `rect_fill` and `line` works without
+installing an icon file. Use uploaded icons for artwork or animation.
 
-**9. One app, one job.** If the user asks for four unrelated things, four small apps sharing values
-through `shared` (5.12) are cheaper and clearer than one that does everything - and the panel has
-room to say one thing at a time anyway.
+**9. Share data and code where it avoids repetition.** Several views of the same source should
+use one reader and `shared` (5.12), with the polling interval and connection settings owned by
+that reader. Reusable calculations and formatting belong in a module (5.20). A module shares
+code, not requests: three apps calling its fetch function still start three fetches. Modules
+have no independent `loop()`; call asynchronous helpers from the reader's `setup()` or `loop()`,
+never from the module's top-level code. Values published by such a helper belong to the calling
+reader. For one view, keep the state in that app rather than adding unnecessary scripts.
 
 **10. Keep the source short.** What the source costs to compile is the binding constraint, not its
 length on disk. Comments are free at runtime, so keep the ones that explain a choice and do not pad.
@@ -1176,7 +1267,7 @@ on the panel.
 8. Is every number wrapped in `str()` before being joined to a string?
 9. Is there any `while true`, `delay()`, `sleep()` or blocking call? Remove it.
 10. Is every function you called actually in section 5? Nothing else exists.
-11. Is every `import` one of `string`, `json`, `math`, `gc`, `strict`, `global`, or a module you
+11. Is every `import` one of `string`, `json`, `math`, `gc`, `strict`, `global`, `modbus`, or a module you
     are also delivering?
 
 **Memory (section 9)**
@@ -1221,8 +1312,8 @@ Close with these steps, in their language, and nothing longer:
 > 3. Paste the code in and press **Save** (or `Ctrl-S`).
 > 4. The app joins the rotation within a moment. Press the right button on the device to skip ahead
 >    to it.
-> 5. To change a setting, go to the **Apps** tab, open the `⋯` menu on the row for `<Name>` and
->    choose **Settings**. Saving there restarts the app.
+> 5. To change a setting, go to the **Apps** tab and click the gear button on the row for `<Name>`.
+>    Saving there restarts the app.
 >
 > If the panel shows **`ERR:`** in red, the script hit an error. The message is shown next to the
 > script in the Scripts tab - **copy it back to me and I will fix it.**

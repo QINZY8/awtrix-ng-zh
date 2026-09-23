@@ -2,12 +2,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "core/apps/IApp.h"
 #include "core/script/BerryVM.h"
 #include "core/script/ScriptError.h"
 #include "core/script/ScriptMeta.h"
+#include "core/script/ScriptServices.h"
 #include "core/script/ScrollBank.h"
 
 namespace awtrix::script {
@@ -25,6 +27,7 @@ class ScriptApp : public IApp {
     kOnButton,
     kShouldShow,
     kDuration,
+    kOnButtonEvent,
     kHookCount,
   };
 
@@ -41,7 +44,10 @@ class ScriptApp : public IApp {
   bool lastWantedShow() const { return lastWantShow_; }
   long dwellMs() const { return dwellMs_; }
   void notifyVisible(bool visible, const RenderCtx* ctx);
+  void releaseIcons();
   bool handleButton(const std::string& btn, const RenderCtx* ctx);
+  bool handleButtonEvent(const std::string& btn, const std::string& event, const RenderCtx* ctx);
+  void dispatchTimer(int32_t id, const RenderCtx* ctx);
   void dispatchHttp(uint32_t id, int status, const std::string& body, bool ok,
                     const RenderCtx* ctx);
   void dispatchMqtt(const std::string& filter, const std::string& topic,
@@ -78,6 +84,8 @@ class ScriptApp : public IApp {
   long dwellMs_ = 0;
   ScriptError error_;
   ScrollBank scroll_;
+  std::unique_ptr<IScriptIconSet> icons_;
+  int64_t lastRenderMs_ = 0;
 };
 
 }

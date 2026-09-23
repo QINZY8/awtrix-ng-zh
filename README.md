@@ -15,9 +15,10 @@ or skip the middleman entirely and **run your app on the device itself.**
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey)](LICENSE.md)
 
 📖 **[Documentation](https://blueforcer.github.io/awtrix-ng/)** &nbsp;·&nbsp;
+🌐 **[AWTRIX Hub](https://awtrix.de)** &nbsp;·&nbsp;
 🚀 [Discord](https://discord.gg/5pbmeCrs3a) &nbsp;·&nbsp;
-⚡ [On-device scripting](#-run-your-app-on-the-device) &nbsp;·&nbsp;
-🔌 [Integrations](#-control-it-from-anything)
+⚡ [On-device scripting](#or-let-it-think-for-itself) &nbsp;·&nbsp;
+🔌 [Features](#-what-you-get)
 
 </div>
 
@@ -67,22 +68,31 @@ red and stays in its own frame - everything else keeps running.
 
 **→ [Scripting guide](https://blueforcer.github.io/awtrix-ng/guides/scripting/)**
 
+### Or take one that already exists
+
+You do not have to start from a blank panel. The **[AWTRIX Hub](https://awtrix.de)** is a gallery of
+ready-made **[automations and scripts](https://awtrix.de/search?platform=awtrixng)** and thousands of
+**[icons](https://awtrix.de/icons)** from the community - open one, send it straight to your display,
+and it is running. The **[pixel studio](https://awtrix.de/editor)** draws your own icons and
+animations in the browser, and you can share anything you make back to the gallery.
+
 ## ✨ What you get
 
-- ⚡ **Apps that run on the device** - edited in the browser, surviving reboots
-- 🎨 **Real graphics** - scrolling colored text, icons, charts, background effects, weather overlays
-- 📥 **Push from anywhere** - screens into the rotation, or a one-shot alert that cuts in front
-- 🏠 **Home Assistant** - MQTT auto-discovery, no YAML
-- 🌡️ **Sensors** - auto-detected temperature/humidity, auto-brightness, battery
-- 🔊 **Sound** - RTTTL melodies through the buzzer or a DFPlayer
-- 🖥️ **Web UI on the device** - live matrix preview, script editor, every setting. No app, no cloud
-- ⚙️ **One image, any board** - pins are settings, not a build flavour
+- ⚡ **Apps that run on the device** - Berry scripts edited in the browser, surviving reboots, with their own settings, HTTP, MQTT and Modbus TCP
+- 📥 **Push from anywhere** - a pushed app that keeps its slot in the rotation, or a notification that cuts in front. HTTP or MQTT
+- 🎨 **Real graphics** - colored scrolling text, JPEG/GIF icons, charts, draw primitives, 19 effects, weather overlays, 22 transitions, custom palettes
+- 🔊 **Sound** - RTTTL melodies, your own MP3s, DFPlayer tracks, and **internet radio** on an ESP32-S3 - scripts can even draw the spectrum and beat
+- 🏠 **Integrations** - Home Assistant via MQTT auto-discovery, Art-Net pixel streaming, `/fullscreen` for a dashboard iframe
+- 🌡️ **Sensors** - temperature/humidity, auto-brightness, battery, buttons with a webhook
+- 🖥️ **Web UI on the device** - live preview, screenshot and GIF, script, icon and palette editors, backup, every setting. No app, no cloud
+- ⚙️ **One image, any board** - ESP32 and ESP32-S3; pins, panel width (32-128 px) and color order are settings, not a build flavour
 
 ## 🚀 Get going
 
-1. **Flash** - open the [browser flasher](https://blueforcer.github.io/awtrix-ng/getting-started/flashing/) in Chrome, Edge or Opera. Nothing to install.
+1. **Flash** - open the [browser flasher](https://blueforcer.github.io/awtrix-ng/getting-started/flashing/) in Firefox, Chrome, Edge or Opera. Nothing to install.
 2. **Wi-Fi** - the device opens its own access point on first boot and the setup page pops up by itself.
 3. **Say hello** - send the `curl` above to `awtrix-ng.local`, then open `http://awtrix-ng.local/` and look around.
+4. **Help yourself** - browse the [AWTRIX Hub](https://awtrix.de) for finished automations, scripts and icons and send them to your display in one click.
 
 
 > **Coming from AWTRIX 3?** This is a from-scratch rewrite with its own **API v1**. Nothing carries

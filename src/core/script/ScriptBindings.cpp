@@ -49,6 +49,7 @@ struct Ctx {
   bool storeDirty = false;
   const GfxFont* font = nullptr;
   ScrollBank* scroll = nullptr;
+  IScriptIconSet* icons = nullptr;
 };
 
 Ctx g_ctx;
@@ -446,9 +447,10 @@ int b_text_ink_width(bvm* vm) {
 
 int b_icon(bvm* vm) {
   bool ok = false;
-  if (canDraw(vm, 3) && g_svc && g_svc->icon && be_isstring(vm, 1)) {
-    const int64_t nowMs = (g_svc && g_svc->monotonicMs) ? g_svc->monotonicMs() : 0;
-    ok = g_svc->icon->draw(*g_ctx.canvas, be_tostring(vm, 1), argInt(vm, 2), argInt(vm, 3), nowMs);
+  if (canDraw(vm, 3) && g_ctx.icons && be_isstring(vm, 1)) {
+    const int64_t frameMs = g_ctx.rctx ? g_ctx.rctx->nowMs : nowMs();
+    ok = g_ctx.icons->draw(*g_ctx.canvas, std::string_view(be_tostring(vm, 1)), argInt(vm, 2),
+                           argInt(vm, 3), frameMs);
   }
   be_pushbool(vm, ok);
   be_return(vm);
@@ -1156,6 +1158,29 @@ int b_log(bvm* vm) {
   be_return_nil(vm);
 }
 
+int b_timer_start(bvm* vm) {
+  int32_t id = 0;
+  if (g_svc && g_svc->startTimer && be_top(vm) >= 2 && be_isint(vm, 1) &&
+      be_isbool(vm, 2)) {
+    const bint delay = be_toint(vm, 1);
+    if (delay >= 25 && delay <= 86400000)
+      id = g_svc->startTimer(static_cast<int32_t>(delay), be_tobool(vm, 2) != 0);
+  }
+  if (!id) be_return_nil(vm);
+  be_pushint(vm, id);
+  be_return(vm);
+}
+
+int b_timer_cancel(bvm* vm) {
+  bool ok = false;
+  if (g_svc && g_svc->cancelTimer && be_top(vm) >= 1 && be_isint(vm, 1)) {
+    const bint id = be_toint(vm, 1);
+    if (id > 0 && id <= INT32_MAX) ok = g_svc->cancelTimer(static_cast<int32_t>(id));
+  }
+  be_pushbool(vm, ok);
+  be_return(vm);
+}
+
 int b_native_app(bvm* vm) {
   be_pushstring(vm, g_ctx.name.c_str());
   be_return(vm);
@@ -1212,6 +1237,8 @@ bool installBindings(BerryVM& vm, std::string& err) {
   // Everything below is raw plumbing the prelude wraps into the documented modules. The
   // leading underscore is what keeps these out of the generated script API reference.
   be_regfunc(b, "_native_app", b_native_app);
+  be_regfunc(b, "_native_timer_start", b_timer_start);
+  be_regfunc(b, "_native_timer_cancel", b_timer_cancel);
   be_regfunc(b, "_native_http_request", b_http_request);
   be_regfunc(b, "_native_mqtt_publish", b_mqtt_publish);
   be_regfunc(b, "_native_mqtt_subscribe", b_mqtt_subscribe);
@@ -1261,12 +1288,13 @@ void setServices(const ScriptServices* s) {
 const ScriptServices* services() { return g_svc; }
 
 BindingScope::BindingScope(Canvas* canvas, const RenderCtx* ctx, const std::string& name,
-                           ScrollBank* scroll) {
+                           ScrollBank* scroll, IScriptIconSet* icons) {
   g_ctx.canvas = canvas;
   g_ctx.rctx = ctx;
   g_ctx.name = name;
   g_ctx.font = nullptr;
   g_ctx.scroll = scroll;
+  g_ctx.icons = icons;
 }
 
 // Note what is NOT cleared: a pending store write outlives the scope on purpose, because the
@@ -1277,6 +1305,7 @@ BindingScope::~BindingScope() {
   g_ctx.name.clear();
   g_ctx.font = nullptr;
   g_ctx.scroll = nullptr;
+  g_ctx.icons = nullptr;
 }
 
 bool BindingScope::storeFlushPending() { return g_ctx.storeDirty; }
