@@ -1,6 +1,7 @@
 #include <unity.h>
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,57 @@ void setUp() {
 }
 
 void tearDown() { script::heap::testing::resetBudgetBytes(); }
+
+namespace {
+
+struct CountingIcons : script::IScriptIcon {
+  struct Set : script::IScriptIconSet {
+    explicit Set(CountingIcons& owner) : owner_(owner) { ++owner_.alive; }
+    ~Set() override { --owner_.alive; }
+    bool draw(Canvas& canvas, std::string_view name, int x, int y, int64_t) override {
+      ++owner_.draws;
+      ++owner_.held;
+      owner_.holding.insert(std::string(name));
+      held_.insert(std::string(name));
+      canvas.setPixel(x, y, 0x00ABCDu);
+      return true;
+    }
+    void release() override {
+      ++owner_.releases;
+      owner_.held = 0;
+      for (const auto& n : held_) owner_.holding.erase(n);
+      held_.clear();
+    }
+    CountingIcons& owner_;
+    std::set<std::string> held_;
+  };
+
+  std::unique_ptr<script::IScriptIconSet> createSet() override {
+    if (failCreates > 0) {
+      --failCreates;
+      return nullptr;
+    }
+    ++created;
+    return std::unique_ptr<script::IScriptIconSet>(new Set(*this));
+  }
+
+  void reset() {
+    created = draws = releases = alive = held = failCreates = 0;
+    holding.clear();
+  }
+
+  int created = 0;
+  int draws = 0;
+  int releases = 0;
+  int alive = 0;
+  int held = 0;
+  int failCreates = 0;
+  std::set<std::string> holding;
+};
+
+CountingIcons g_icons;
+
+}
 
 static std::string app(const std::string& body) {
   return "class App\n" + body + "\nend\nreturn App()";
@@ -572,6 +624,34 @@ static void test_http_ids_are_unique_across_scripts() {
   TEST_ASSERT_EQUAL_HEX32(22u, c.getPixel(0, 0));
 }
 
+static void test_modbus_apps_have_independent_endpoints_and_callbacks() {
+  FakeHttp fake;
+  g_svc.http = &fake;
+  AppRegistry reg;
+  script::ScriptHost host(reg, g_svc, nullptr, nullptr);
+  const auto source = [](const std::string& endpoint) {
+    return "import modbus\n" + app("var t\ndef init() self.t = 0 end\n"
+        "def setup() modbus.readHoldingRegisters('" + endpoint + "', 12, 1, "
+        "def(v, e) self.t = e == 0 ? v[0] : 99 end, {'port':1502, 'unit':7}) end\n"
+        "def draw() pixel(0, 0, self.t) end");
+  };
+  TEST_ASSERT_TRUE(host.set("A", source("meter.local")));
+  TEST_ASSERT_TRUE_MESSAGE(host.errorOf("A").message.empty(), host.errorOf("A").message.c_str());
+  TEST_ASSERT_TRUE(host.set("B", source("192.168.1.20")));
+  TEST_ASSERT_EQUAL_UINT(2, fake.urls.size());
+  TEST_ASSERT_EQUAL_STRING("modbus://meter.local:1502/7/3/12/1", fake.urls[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("modbus://192.168.1.20:1502/7/3/12/1", fake.urls[1].c_str());
+  host.pushHttpResult({fake.ids[1], true, 200, "[22]"});
+  host.pushHttpResult({fake.ids[0], true, 200, "[11]"});
+  RenderCtx ctx;
+  host.tick(ctx, "A");
+  Canvas c(32, 8);
+  reg.find("A")->render(c, ctx);
+  TEST_ASSERT_EQUAL_HEX32(11, c.getPixel(0, 0));
+  reg.find("B")->render(c, ctx);
+  TEST_ASSERT_EQUAL_HEX32(22, c.getPixel(0, 0));
+}
+
 static void test_http_failure_and_unknown_id() {
   FakeHttp fake;
   g_svc.http = &fake;
@@ -588,6 +668,82 @@ static void test_http_failure_and_unknown_id() {
   reg.find("W")->render(c, ctx);
   TEST_ASSERT_EQUAL_HEX32(7u, c.getPixel(0, 0));
   TEST_ASSERT_TRUE(host.errorOf("W").empty());
+}
+
+static void test_modbus_functions_conversions_and_failures() {
+  FakeHttp fake;
+  g_svc.http = &fake;
+  AppRegistry reg;
+  script::ScriptHost host(reg, g_svc, nullptr, nullptr);
+  const std::string src = "import modbus\n" + app(
+      "var t\ndef init() self.t = 0 end\n"
+      "def setup()\n"
+      "assert(modbus.int16(65535) == -1)\n"
+      "assert(modbus.int32(65535, 65534) == -2)\n"
+      "assert(modbus.float32(0x41BC, 0) == 23.5)\n"
+      "modbus.readInputRegisters('x', 0, 2, def(v,e) self.t = e end)\n"
+      "modbus.readCoils('y', 0, 9, def(v,e) self.t = e end)\n"
+      "modbus.readDiscreteInputs('z', 0, 1, def(v,e) self.t = e end)\n"
+      "end\ndef draw() pixel(0,0,self.t) end");
+  TEST_ASSERT_TRUE(host.set("A", src));
+  TEST_ASSERT_TRUE_MESSAGE(host.errorOf("A").empty(), host.errorOf("A").message.c_str());
+  TEST_ASSERT_EQUAL_UINT(3, fake.urls.size());
+  TEST_ASSERT_EQUAL_STRING("modbus://x:502/1/4/0/2", fake.urls[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("modbus://y:502/1/1/0/9", fake.urls[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("modbus://z:502/1/2/0/1", fake.urls[2].c_str());
+  host.pushHttpResult({fake.ids[0], false, 2, ""});
+  RenderCtx ctx;
+  Canvas c(32, 8);
+  host.tick(ctx, "A");
+  reg.find("A")->render(c, ctx);
+  TEST_ASSERT_EQUAL_HEX32(2, c.getPixel(0, 0));
+  host.remove("A");
+  TEST_ASSERT_TRUE(host.set("A", app("def draw() pixel(0,0,44) end")));
+  host.pushHttpResult({fake.ids[1], true, 200, "[1]"});
+  host.tick(ctx, "A");
+  reg.find("A")->render(c, ctx);
+  TEST_ASSERT_EQUAL_HEX32(44, c.getPixel(0, 0));
+  fake.accept = false;
+  TEST_ASSERT_TRUE(host.set("B", "import modbus\n" + app(
+      "var t\ndef setup() modbus.readHoldingRegisters('x',0,1,"
+      "def(v,e) self.t = v == nil && e == -1 ? 55 : 0 end) end\n"
+      "def draw() pixel(0,0,self.t) end")));
+  reg.find("B")->render(c, ctx);
+  TEST_ASSERT_EQUAL_HEX32(55, c.getPixel(0, 0));
+}
+
+static void test_modbus_module_feeds_multiple_apps_from_one_background_reader() {
+  FakeHttp fake;
+  g_svc.http = &fake;
+  AppRegistry reg;
+  script::ScriptHost host(reg, g_svc, nullptr, nullptr);
+  TEST_ASSERT_TRUE(host.set("meterlib",
+      "# @module\nimport modbus\nvar m = module('meterlib')\n"
+      "m.read = def(cb) modbus.readHoldingRegisters('meter.local',0,2,cb) end\nreturn m"));
+  TEST_ASSERT_TRUE(host.set("meter",
+      "# @headless true\nimport meterlib\nclass Meter\n"
+      "var started\ndef init() self.started=false end\n"
+      "def loop()\nif self.started return end\nself.started=true\n"
+      "meterlib.read(def(v,e)\nassert(e==0)\n"
+      "shared.set('power',v[0])\nshared.set('voltage',v[1])\nend)\nend\nend\nreturn Meter()"));
+  TEST_ASSERT_TRUE(host.set("power", app(
+      "def draw() pixel(0,0,shared.get('meter.power',0)) end")));
+  TEST_ASSERT_TRUE(host.set("voltage", app(
+      "def draw() pixel(0,0,shared.get('meter.voltage',0)) end")));
+  RenderCtx ctx;
+  ctx.nowMs = g_now = 1000;
+  host.tick(ctx, "power");
+  TEST_ASSERT_TRUE_MESSAGE(host.errorOf("meterlib").empty(), host.errorOf("meterlib").message.c_str());
+  TEST_ASSERT_TRUE_MESSAGE(host.errorOf("meter").empty(), host.errorOf("meter").message.c_str());
+  TEST_ASSERT_EQUAL_UINT(1, fake.ids.size());
+  host.pushHttpResult({fake.ids[0], true, 200, "[235,236]"});
+  host.tick(ctx, "power");
+  Canvas c(32, 8);
+  reg.find("power")->render(c, ctx);
+  TEST_ASSERT_EQUAL_HEX32(235, c.getPixel(0, 0));
+  reg.find("voltage")->render(c, ctx);
+  TEST_ASSERT_EQUAL_HEX32(236, c.getPixel(0, 0));
+  TEST_ASSERT_EQUAL_UINT(1, fake.ids.size());
 }
 
 static void test_http_result_for_replaced_script_is_dropped() {
@@ -2078,6 +2234,79 @@ static void test_guarded_update_restores_broken_or_unsaved_replacement() {
   TEST_ASSERT_EQUAL(DispatchResult::ValidationError, svc.updateScript("S", "{}", detail));
 }
 
+static void renderApp(AppRegistry& reg, const char* name, const RenderCtx& ctx) {
+  IApp* a = reg.find(name);
+  TEST_ASSERT_NOT_NULL(a);
+  Canvas c(32, 8);
+  a->render(c, ctx);
+}
+
+static void test_icons_are_released_when_the_app_leaves_the_screen() {
+  g_icons.reset();
+  g_svc.icon = &g_icons;
+  AppRegistry reg;
+  script::ScriptHost host(reg, g_svc, nullptr, nullptr);
+  host.set("A", app("def draw() icon('a', 0, 0) end"));
+  host.set("B", app("def draw() icon('b', 0, 0) end"));
+  RenderCtx ctx;
+
+  host.tick(ctx, "A");
+  renderApp(reg, "A", ctx);
+  TEST_ASSERT_TRUE(g_icons.holding.count("a") == 1);
+
+  host.tick(ctx, "A", "B");
+  renderApp(reg, "A", ctx);
+  renderApp(reg, "B", ctx);
+  host.tick(ctx, "A", "B");
+  TEST_ASSERT_EQUAL_UINT(2, g_icons.holding.size());
+  TEST_ASSERT_EQUAL_INT(0, g_icons.releases);
+
+  host.tick(ctx, "B");
+  TEST_ASSERT_TRUE(g_icons.holding.count("a") == 0);
+  TEST_ASSERT_TRUE(g_icons.holding.count("b") == 1);
+
+  host.tick(ctx, "Time");
+  TEST_ASSERT_TRUE(g_icons.holding.empty());
+  TEST_ASSERT_EQUAL_INT(2, g_icons.created);
+}
+
+static void test_removing_a_visible_app_destroys_its_icon_set() {
+  g_icons.reset();
+  g_svc.icon = &g_icons;
+  AppRegistry reg;
+  script::ScriptHost host(reg, g_svc, nullptr, nullptr);
+  host.set("A", app("def draw() icon('a', 0, 0) end"));
+  RenderCtx ctx;
+  host.tick(ctx, "A");
+  renderApp(reg, "A", ctx);
+  TEST_ASSERT_EQUAL_INT(1, g_icons.alive);
+  host.remove("A");
+  TEST_ASSERT_EQUAL_INT(0, g_icons.alive);
+}
+
+static void test_reinstalling_a_visible_app_releases_its_icons_first() {
+  g_icons.reset();
+  g_svc.icon = &g_icons;
+  AppRegistry reg;
+  script::ScriptHost host(reg, g_svc, nullptr, nullptr);
+  host.set("A", app("def draw() icon('a', 0, 0) end"));
+  RenderCtx ctx;
+  host.tick(ctx, "A");
+  renderApp(reg, "A", ctx);
+  TEST_ASSERT_EQUAL_INT(1, g_icons.held);
+
+  TEST_ASSERT_FALSE(host.set("A", "class App def draw( end\nreturn App()") && host.errorOf("A").empty());
+  TEST_ASSERT_EQUAL_INT(1, g_icons.releases);
+  TEST_ASSERT_EQUAL_INT(0, g_icons.held);
+  TEST_ASSERT_EQUAL_INT(0, g_icons.alive);
+
+  TEST_ASSERT_TRUE(host.set("A", app("def draw() icon('b', 0, 0) end")));
+  host.tick(ctx, "A");
+  renderApp(reg, "A", ctx);
+  TEST_ASSERT_EQUAL_INT(1, g_icons.alive);
+  TEST_ASSERT_EQUAL_INT(1, g_icons.held);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_guarded_copy_never_replaces_a_script);
@@ -2112,6 +2341,9 @@ int main(int, char**) {
   RUN_TEST(test_button_goes_only_to_the_visible_script);
   RUN_TEST(test_http_result_routed_to_owning_script);
   RUN_TEST(test_http_ids_are_unique_across_scripts);
+  RUN_TEST(test_modbus_apps_have_independent_endpoints_and_callbacks);
+  RUN_TEST(test_modbus_functions_conversions_and_failures);
+  RUN_TEST(test_modbus_module_feeds_multiple_apps_from_one_background_reader);
   RUN_TEST(test_http_failure_and_unknown_id);
   RUN_TEST(test_http_result_for_replaced_script_is_dropped);
   RUN_TEST(test_http_pending_cap_per_script);
@@ -2203,5 +2435,8 @@ int main(int, char**) {
   RUN_TEST(test_editing_a_modules_code_keeps_its_settings);
   RUN_TEST(test_a_stored_module_value_beats_a_changed_default);
   RUN_TEST(test_removing_a_module_releases_its_store);
+  RUN_TEST(test_icons_are_released_when_the_app_leaves_the_screen);
+  RUN_TEST(test_removing_a_visible_app_destroys_its_icon_set);
+  RUN_TEST(test_reinstalling_a_visible_app_releases_its_icons_first);
   return UNITY_END();
 }

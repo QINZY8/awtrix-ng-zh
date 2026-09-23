@@ -7,7 +7,7 @@ One JSON schema drives both pushed apps and notifications. The same object descr
 | **Pushed app** | `PUT /api/v1/apps/pushed/{name}` · MQTT `<prefix>/cmd/apps/pushed/<name>` |
 | **Notification** | `POST /api/v1/notifications` · MQTT `<prefix>/cmd/notify` |
 
-The schema has exactly **40 top-level keys** - 33 shared, plus 7 read only for notifications. Any other key is an error.
+The schema has exactly **42 top-level keys** - 35 shared, plus 7 read only for notifications. Any other key is an error.
 
 ## Errors
 
@@ -227,7 +227,7 @@ The base rate is **21 px/s at `speed: 100`**, so `pxPerSec = 21 × (speed / 100)
 
 #### Anchors
 
-The text area begins at column 9 when an icon is present, column 0 otherwise.
+The text area begins right of the icon and its [`iconGap`](#icongap) when an icon is present - column 9 for an 8px icon with the default gap - and at column 0 otherwise.
 
 With `direction: left`, an `inline` text rests at the start of that area, while an `offscreen` text starts just past the right edge and scrolls in; either way it finishes once it has moved fully off the left edge. `direction: right` mirrors the whole geometry - rest, entry and exit anchors all swap ends - so the text rests flush against the right edge, an `offscreen` text enters from just past the left edge, and it exits off the right edge.
 
@@ -244,20 +244,22 @@ With `direction: left`, an `inline` text rests at the start of that area, while 
 | `icon` | string | - | `""` | Icon ID, or inline base64 when longer than 64 chars |
 | `iconMode` | string | `fixed` · `pushOnce` · `push` | `fixed` | Whether approaching text shoves the icon aside |
 | `iconOffsetX` | int | px | `0` | X shift of the icon |
+| `iconGap` | int | 0–128 px | `1` | Empty columns between the icon and the text |
+| `icons` | array | up to 4 objects | `[]` | Additional icons at absolute `x`, `y` positions |
 
 The mode is chosen purely by **length**:
 
 - **64 characters or fewer** - an icon ID resolved against the filesystem. Animated `/ICONS/<id>.gif` is tried **first**, then static `/ICONS/<id>.jpg`.
 - **More than 64 characters** - inline base64 data, decoded and sniffed: a `GIF8` magic makes it an animated GIF, otherwise it is decoded as JPEG.
 
-Only JPEG and GIF are supported - no PNG, no BMP. Icons are drawn at rows 0–7.
+Only JPEG and GIF are supported - no PNG, no BMP. The `icon` image starts at the top row of the display.
 
 - **JPEG** always occupies an 8×8 square. A larger image is not rejected, but only its top-left 8×8 corner is shown, so draw JPEG icons at 8×8.
-- **GIF** keeps its own width, up to the full 32×8 panel.
+- **GIF** keeps its own width and height, up to the active panel's dimensions.
 
 A non-string `icon` is ignored.
 
-An icon narrower than the panel reserves a **9px column** (8px icon + 1px gap) that indents text, bars and the line chart. A GIF spanning the full 32 px is treated as a **background** instead: it is drawn at x=0 beneath the text, indents nothing, and replaces the app's `backgroundColor` colour and any `effect`. An icon that is missing or fails to decode falls back to the icon-less layout rather than leaving a black column.
+An icon narrower than the panel reserves a **column of its own width plus `iconGap`** - 9px for an 8px icon with the default 1px gap - that indents text, bars and the line chart. Scrolling text disappears at the right edge of that column, so the gap stays clear while it moves; static text is not cut there, and a negative `textOffsetX` can still pull it into the gap. A GIF spanning the panel's full width is treated as a **background** instead: it is drawn at x=0 beneath the text, indents nothing, and replaces the app's `backgroundColor` colour and any `effect`. An icon that is missing or cannot be loaded falls back to the icon-less layout rather than leaving a black column.
 
 Transparent GIF pixels render as **black** on the first frame of an animation; within an animation they keep what the previous frame drew there.
 
@@ -265,19 +267,67 @@ Transparent GIF pixels render as **black** on the first frame of an animation; w
 
 | Value | Behavior |
 |---|---|
-| `fixed` | Icon stays put; text scrolls past it |
+| `fixed` | Icon stays put; text scrolls out behind the gap |
 | `pushOnce` | Scrolling text shoves the icon off to the left **once**; it stays gone, and the text then restarts at x=0 |
 | `push` | Icon is pushed out but **returns** on every scroll cycle |
 
-The shift travels 0 → −9px as the text approaches. Does nothing when `icon` is empty.
+The shift travels from 0 until the icon and its gap have left the panel - −9px for an 8px icon with the default gap - as the text approaches. Does nothing when `icon` is empty.
 
-`iconOffsetX` moves the icon on the X axis only - there is no Y counterpart, the icon always occupies rows 0–7. It does not change the 9px column reserved for text and charts, so a positive `iconOffsetX` slides the icon *under* the text rather than moving the text out of the way.
+`iconOffsetX` moves the ordinary `icon` on the X axis only; it starts at the top row. It does not change the column reserved for text and charts, so a positive `iconOffsetX` slides the icon *over* the text rather than moving the text out of the way: the icon is painted after the text and covers it. Use `icons` below for freely positioned images.
 
 ```bash
 curl -X PUT http://<awtrix-ip>/api/v1/apps/pushed/news \
   -H 'Content-Type: application/json' \
   -d '{"text":"Long headline that scrolls","icon":"1234","iconMode":"push"}'
 ```
+
+### `iconGap`
+
+`iconGap` is the number of empty columns between the icon's right edge and the text. It counts from the icon's real width, so a 12px-wide GIF with the default gap starts the text at column 13. `0` puts the text right against the icon, which suits an icon whose artwork already ends in an empty column. The gap moves with the icon under `push` and `pushOnce`, and scrolling text never runs into it.
+
+The value must be an integer from 0 to 128. Anything else - a negative number, a fraction, a string or `null` - rejects the request with `422 validationFailed` and `field` = `iconGap`.
+
+```bash
+curl -X PUT http://<awtrix-ip>/api/v1/apps/pushed/news \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Long headline that scrolls","icon":"1234","iconGap":2}'
+```
+
+### Multiple icons
+
+Pushed apps and notifications accept the same optional `icons` array:
+
+```json
+{
+  "icons": [
+    {"icon": "weather", "x": 0, "y": 0},
+    {"icon": "mail", "x": 12, "y": 0},
+    {"icon": "music", "x": 24, "y": 0}
+  ]
+}
+```
+
+Each object requires a nonempty `icon` string with the same ID/base64 convention as the ordinary
+`icon` field. `x` and `y` are optional integers, defaulting to zero, from −65535 to 65535. Negative
+coordinates clip at the display edge. Images retain their own size and must fit the panel's
+width and height before positioning.
+
+Each entry animates independently, including two entries using the same image. Each GIF uses
+its own colors and frame timings. Icons draw in array order after text, decorations and the
+ordinary `icon`, before the overlay; later entries
+cover earlier ones. They reserve no text columns and do not move with `iconMode`. You can also
+set `icon` to show an image beside the text or a full-width GIF background.
+
+There are at most **4 additional icons per page**. More than 4 entries, an invalid coordinate,
+a missing `icon`, or an unknown object property rejects the entire request with
+`422 validationFailed` and a field such as `icons[1].x`. If an image cannot be loaded, that icon
+is skipped and the rest of the page is shown. An image that does not exist is looked for again
+once a file is uploaded or deleted; one that failed for lack of memory is retried after five
+seconds. Additional icons load one per frame, so a page with several appears over a few frames;
+their animations start together once all of them are there.
+
+Send `"icons": []` to remove a pushed app's additional icons. In scripts, call `icon(name, x, y)`
+several times in `draw()`; see [Panel and drawing](../guides/scripting.md#panel-and-drawing).
 
 ## Timing & how long a page lives
 
@@ -363,7 +413,7 @@ curl -X PUT http://<awtrix-ip>/api/v1/apps/pushed/traffic \
 | `progressColor` | color | - | `#00FF00` | Filled portion |
 | `progressTrackColor` | color | - | `#FFFFFF` | Unfilled portion |
 
-Drawn on the **bottom row only**, spanning from x=8 when an icon is present, else x=0 - one pixel further left than text and charts, which start at x=9. Values above 100 clamp to 100; `progress: 0` draws a full row of `progressTrackColor`. Any value below 0 draws nothing. The filled part covers that percentage of the bar's width, and the track is the unfilled remainder of the row rather than a background behind it.
+Drawn on the **bottom row only**, spanning from the icon's right edge when an icon is present - x=8 for an 8px icon - else x=0. It runs under the [`iconGap`](#icongap), so it starts that many pixels further left than text and charts. Values above 100 clamp to 100; `progress: 0` draws a full row of `progressTrackColor`. Any value below 0 draws nothing. The filled part covers that percentage of the bar's width, and the track is the unfilled remainder of the row rather than a background behind it.
 
 ```bash
 curl -X PUT http://<awtrix-ip>/api/v1/apps/pushed/download \
@@ -597,9 +647,10 @@ Each frame is painted in this order:
 
 1. **Background** - the effect if `effect` resolves, otherwise a clear to `backgroundColor` or black.
 2. **Text and decorations** - if `textInFront`, decorations then text; otherwise text then decorations. Decorations are always `draw` commands → progress → bar chart → line chart.
-3. **Icon** - drawn at rows 0–7, at `iconOffsetX` plus any `iconMode` shift.
-4. **Overlay** - the per-app overlay if set, else the global one.
-5. **Stale marker** - a dark-red frame if a `lifetimeExpiry: "mark"` app has expired. Drawn before the icon and overlay, so those paint over it.
+3. **Icon** - starts at the top row, at `iconOffsetX` plus any `iconMode` shift. A full-width ordinary icon is the background instead.
+4. **Additional icons** - `icons` entries, in array order, at their absolute `x`, `y` positions.
+5. **Overlay** - the per-app overlay if set, else the global one.
+6. **Stale marker** - a dark-red frame if a `lifetimeExpiry: "mark"` app has expired. Drawn before the icons and overlay, so those paint over it.
 
 ## Worked example
 

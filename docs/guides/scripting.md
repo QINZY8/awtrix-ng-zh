@@ -18,6 +18,10 @@ language built for microcontrollers. Nothing is compiled and nothing is flashed.
 You paste source into the web UI, hit save, and the app is on the panel a moment
 later.
 
+Nothing to write yet? The **[AWTRIX Hub](https://awtrix.de/search?platform=awtrixng)** collects
+finished scripts and automations from the community. Send one to your display from its page, and
+the web UI offers the author's later versions as an update.
+
 !!! tip "Would rather be shown than told?"
     This page is a reference: it explains every call, and you look things up in it.
     [**Learn by building**](../tutorials/first-draw.md) is the other half, three
@@ -109,7 +113,7 @@ row that sounds like the app you have in mind, and follow it.
 
 | For | The calls |
 |---|---|
-| [Being an app](#the-lifecycle) | `draw()` `setup()` `loop()` `on_show()` `on_hide()` `on_button()` `should_show()` `duration()` |
+| [Being an app](#the-lifecycle) | `draw()` `setup()` `loop()` `on_show()` `on_hide()` `on_button()` `on_button_event()` `should_show()` `duration()` |
 | [Drawing](#panel-and-drawing) | `clear()` `pixel()` `line()` `rect()` `rect_fill()` `circle()` `circle_fill()` `icon()` `width()` `height()` `rgb()` `hsv()` |
 | [Writing text](#panel-and-drawing) | `text()` `text_width()` `text_ink_width()` `font()` |
 | [Text that moves or shades](#styled-and-scrolling-text) | `scroll_text()` `ramp_text()` |
@@ -121,11 +125,13 @@ row that sounds like the app you have in mind, and follow it.
 | [Letting the user change something](#settings-the-user-can-change) | a `# @config` line, then `store.get()` |
 | [Shipping the icons you draw](#the-icons-your-script-needs) | a `# @icons` line, then `icon()` |
 | [Fetching from the internet](#http) | `http.get()` `http.post()` `http.put()` `http.patch()` `http.delete()` |
+| [Reading a Modbus device](#modbus-tcp) | `modbus.readHoldingRegisters()` `modbus.readInputRegisters()` |
 | [Picking a value out of a reply](#regular-expressions) | `re.search()` `re.match()` `re.matchall()`, or `json.load()` |
 | [Home automation](#mqtt) | `mqtt.publish()` `mqtt.subscribe()` |
 | [Handing values to another app](#talking-to-other-apps) | `shared.set()` `shared.get()` `shared.age()` `shared.keys()` |
 | [Sharing code between apps](#sharing-code-between-scripts) | a `# @module` file, then `import` |
 | [Interrupting with an alert](#notifications) | `notify()` |
+| [Timers](#timers) | `timer.after()` `timer.every()` `timer.cancel()` |
 | [Making a noise](#sound) | `sound.play()` `sound.mp3()` `sound.melody()` `sound.track()` `sound.rtttl()` `sound.stop()` `sound.playing()` `sound.sinks()` |
 | [Reacting to the music](#music) | `music.bands()` `music.level()` `music.beat()` `music.playing()` |
 | [What the device measures](#reading-the-sensors) | `sensor.temperature()` `sensor.humidity()` `sensor.pressure()` `sensor.light()` `sensor.battery()` |
@@ -135,8 +141,9 @@ row that sounds like the app you have in mind, and follow it.
 | [Working out what went wrong](#logging) | `log()` |
 | [Which firmware is running](#which-firmware-is-running) | `version()` |
 
-None of it needs an `import`. Only `json`, `string` and `math` do, and one line at
-the top of the file is the whole ceremony.
+Use `import modbus` for Modbus reads. General-purpose modules such as `json`,
+`string` and `math`, and your own helper modules, also need an `import` line.
+The other AWTRIX objects in the table are ready to use.
 
 Three habits carry most of it: keep what you fetched in a member and let
 [`draw()`](#the-lifecycle) only paint it, ask [`width()`](#panel-and-drawing)
@@ -144,6 +151,26 @@ instead of assuming 32 columns, and put anything the next person might want to
 change in a [`@config`](#settings-the-user-can-change) line rather than in the
 source. A [complete app doing exactly that](#a-real-one-weather) is at the end of
 the page.
+
+### Choose how your apps work together
+
+| What you need | Use |
+|---|---|
+| One app shows its own reading | Fetch in that app and keep the result in a member. |
+| Several apps show values from the same device or API | One [background script](#running-without-ever-being-shown) fetches; [`shared`](#talking-to-other-apps) distributes the results. |
+| Several apps use the same calculation or formatting | A [module](#sharing-code-between-scripts) holds the helper functions. |
+| Several apps use the same setting, such as a city | [Module settings](#settings-several-apps-share) let the user change it once. |
+| An app needs to remember a setting after a reboot | [`store`](#storage) keeps it for that app. |
+
+For example, one meter reader can supply separate power and voltage apps.
+Only the reader contacts the meter; the display apps use its published values.
+The [complete example](#share-one-device-across-several-apps) shows all the pieces.
+The same arrangement works for HTTP data or MQTT messages.
+
+A module shares functions, but calling a fetch function from three apps still
+starts three fetches. Put the polling in one place, keep only the values you need,
+and let each display app check `shared.age()` before showing them. For a single
+app, keeping the reading in a member is simpler and avoids an extra script.
 
 ---
 
@@ -245,6 +272,7 @@ The hooks are **methods on your class**. Only `draw()` is required; define the o
 | `draw()` | every frame (~40/s) while your app is on screen | **yes** |
 | `on_show()` | your app has just been rotated in | no |
 | `on_hide()` | your app has just been rotated out | no |
+| `on_button_event(btn, event)` | a press, release or hold handled by your app; see [Button events](#button-events) | no |
 | `on_button(btn)` | a button was pressed while your app is on screen; `btn` is `"left"`, `"select"` or `"right"`, and `true` consumes the press | no |
 | `should_show()` | the rotation has reached you - return `false` to let it pass you by | no |
 | `duration()` | the rotation has reached you - return ms to override how long you stay | no |
@@ -378,6 +406,11 @@ out. The web UI lists it under **Background**, and the flag shows up as `headles
 Switching it off is the same gesture as for anything else: **−** in the Background card deactivates
 it, **+ Activate** starts it again.
 
+Use this for a device or API that feeds several display apps: keep the polling
+interval and connection settings in the background script, then publish the
+results through `shared`. Keep that script active even when none of its display
+apps is on screen. See [one device, several apps](#share-one-device-across-several-apps).
+
 ### Setting your own dwell time
 
 Every app is shown for the global app-time (7000 ms out of the box) before the rotation moves on. `duration()` overrides that for your app alone: return a number of milliseconds and the rotation stays on you for exactly that long this turn. It is the script equivalent of a pushed app's `durationMs` field.
@@ -458,7 +491,7 @@ and keeps you there.
 
 ## The API
 
-Everything below is callable from any of your class's methods, with nothing to import: the drawing, time and number calls are plain global functions, and `http`, `mqtt`, `store`, `shared`, `settings`, `display`, `sound`, `music`, `rotation` and `re` are ready-made objects. Only the general-purpose modules - `json`, `string`, `math` - want one `import` line at the top of the file, and the [HTTP example](#http) shows it in place.
+The drawing, time and number calls are plain global functions, and `http`, `mqtt`, `store`, `shared`, `settings`, `display`, `sound`, `music`, `rotation` and `re` are ready-made objects. Modules such as `json`, `string`, `math` and `modbus` need an `import` line at the top of the file. The [HTTP example](#http) and [Modbus example](#modbus-tcp) show this in place.
 
 The short examples in this section show a single method for brevity - read them as living inside your class, alongside `draw()` and a `return YourClass()` at the end of the file.
 
@@ -498,7 +531,7 @@ build the same number from plain channel values.
 | `text_width(str)` | how far the pen moves - use it to chain runs and to space repeats | `var w = text_width("hi")` |
 | `text_ink_width(str)` | how wide the lit pixels are - use it to fit and to centre | `var w = text_ink_width("hi")` |
 | `font(name)` | switch to `"small"` or `"large"` for the rest of the frame | `font("large")` |
-| `icon(name, x, y)` | an 8×8 icon by name; `false` if it could not be drawn | `icon("1234", 0, 0)` |
+| `icon(name, x, y)` | an icon by name at its own size - JPG 8×8, GIF up to the panel dimensions; `false` if it could not be drawn | `icon("1234", 0, 0)` |
 | `rgb(r, g, b)` | pack a colour from channels (0–255) | `pixel(0, 0, rgb(255, 128, 0))` |
 | `hsv(h, s, v)` | pack a colour from hue/sat/val (h 0–360, s/v 0–100) | `hsv(second() * 6, 100, 100)` |
 
@@ -532,11 +565,39 @@ colour of its own, uses the colour of the call, and `font("large")` applies to a
 the same thing a [pushed app](../reference/payload.md#colored-fragments) does when its `text` is
 an array rather than a string.
 
-`icon()` draws from the same `/ICONS` folder the rest of AWTRIX uses - see [Icons & assets](icons.md). Give it the bare name, no path and no extension. **An animated GIF animates** - draw the same icon each frame and it plays, on the same schedule a [pushed app](pushed-apps.md)'s icon uses. A handful of icons stay cached, so cycling through a small set is cheap while fanning out over many costs a read each time.
+`icon()` draws an installed icon by name — see [Icons & assets](icons.md). Use the file name
+without its path or extension. A JPG is 8×8; a GIF uses its own size and must fit your display.
+A full-width GIF at `(0, 0)` covers the panel. Text or images drawn after it appear on top.
+Call `icon()` in `draw()` to keep an animated GIF playing automatically.
 
-`icon()` returns `false` for a name AWTRIX does not have, and briefly also when it is
-short on memory - that second case heals itself within a few seconds, but the icon draws
-nothing meanwhile. If a hole would be worse than a placeholder, paint one:
+Call `icon()` several times to show several icons. Each GIF uses its own colours and frame
+timing, so different icons can animate at different speeds. This example uses five installed
+8×8 icons and needs a display at least 40 pixels wide:
+
+```berry
+class Weather
+  def draw()
+    clear()
+    icon("sun", 0, 0)
+    icon("rain", 8, 0)
+    icon("cloud", 16, 0)
+    icon("wind", 24, 0)
+    icon("moon", 32, 0)
+  end
+end
+return Weather()
+```
+
+`x` and `y` position the icon's top-left corner. Parts outside the display are clipped.
+If icons overlap, the later call draws on top. Drawing the same icon name at two positions
+shows matching animation frames in both places. An animated icon starts from
+its first frame each time the app comes on screen.
+
+Up to **4 different icon names** can be drawn in one display frame. Calls for further names
+return `false`.
+
+`icon()` returns `false` when an icon cannot be displayed, for example if the file is missing
+or the device has insufficient memory. To show a placeholder instead of an empty space:
 
 ```berry
 if !icon(self.ic, 0, 0)
@@ -661,6 +722,119 @@ end
 ```
 
 The return value counts completed runs, for an app that wants to act on one.
+
+### Timers
+
+Use `timer.after()` to do something later and `timer.every()` to repeat an
+action. Both return immediately, so the display keeps running.
+
+| Call | What it does |
+|---|---|
+| `timer.after(ms, callback)` | Calls your function once after the delay. |
+| `timer.every(ms, callback)` | Calls your function repeatedly, starting after the first interval. |
+| `timer.cancel(id)` | Stops one of your app's timers; returns `true` if it was still waiting. |
+
+The delay is a whole number of milliseconds, from **25 to 86,400,000** (one day).
+Starting a timer returns its ID, or `nil` if the arguments are invalid or there
+is no free slot. Each app can have **8 timers**, with **32 across all apps**.
+`timer.cancel(nil)` and cancelling a finished timer safely return `false`.
+No `import` is needed.
+
+This complete app briefly shows **GO** when you press the middle button:
+
+```berry
+class Reminder
+  var message, pending
+
+  def init()
+    self.message = "READY"
+  end
+
+  def reset()
+    self.message = "READY"
+    self.pending = nil
+  end
+
+  def on_button(btn)
+    if btn != "select" return false end
+    timer.cancel(self.pending)
+    self.message = "GO"
+    self.pending = timer.after(3000, / -> self.reset())
+    if self.pending == nil self.reset() end
+    return true
+  end
+
+  def draw()
+    text(0, 6, self.message)
+  end
+end
+return Reminder()
+```
+
+The callback takes no arguments. Use a closure such as `/ -> self.reset()` to
+access your app. Callbacks update values or trigger actions; drawing stays in
+`draw()`. Create timers in `setup()`, a button handler or another callback,
+not every frame in `draw()`.
+
+Timers also run while another app is on screen or the matrix is off. Deactivating
+an app stops its callbacks. When you activate it again, an overdue timer runs
+once; repeating timers then continue from that point. Delays can run
+late when the device is busy, and missed repeats are never replayed in a burst.
+Timers use elapsed time, so adjusting the clock does not affect them.
+
+Saving, deleting or restarting an app clears its old timers. A script error
+stops its timers too. Timers do not survive a device restart; create any timers
+you need again in `setup()`.
+
+### Button events
+
+For holding and releasing a button, add `on_button_event(btn, event)`.
+`btn` is `"left"`, `"select"` or `"right"`, respecting the device's button swap
+and rotation settings.
+
+| Event | When it arrives |
+|---|---|
+| `"press"` | Once when the button is pressed. Return `true` to take this press. |
+| `"long"` | Once after holding a button you took for 600 ms. |
+| `"repeat"` | Every 150 ms after `"long"`, while still held. |
+| `"release"` | Once when that button is released. |
+
+Only returning `true` from `"press"` takes the button. The other return values
+are ignored. If you do not take it, AWTRIX calls your existing `on_button(btn)`
+handler and then performs the usual navigation if that handler does not take it
+either. Existing apps need no changes. Taking the middle button also takes over
+its usual dismiss-notification and double-press actions for that press.
+
+This app counts middle-button presses and repeats while you hold the button:
+
+```berry
+class Counter
+  var count
+
+  def init()
+    self.count = 0
+  end
+
+  def on_button_event(btn, event)
+    if btn != "select" return false end
+    if event == "press" || event == "repeat"
+      self.count += 1
+    end
+    return true
+  end
+
+  def draw()
+    text(0, 6, str(self.count))
+  end
+end
+return Counter()
+```
+
+Events go only to the app that took the press, while it remains the current
+visible app. Switching apps, deactivating, saving or deleting the app ends that
+interaction; a held button is never handed to the next app. A release event is
+not sent after the interaction has ended. Reset any temporary pressed state in
+`on_hide()` as well as on `"release"`. Keep handlers short and draw in `draw()`.
 
 ### Time
 
@@ -994,9 +1168,18 @@ var old = shared.age("prov.temp")     # ms since it was last written, nil if abs
 
 Writing takes a **bare** key and files it under your install name, so a value's origin is always exactly who wrote it and no app can quietly overwrite another's numbers. Reading takes a **qualified** name, `owner.key`. Keys may not contain dots, which is what keeps the two halves apart.
 
-Values are scalars: integers, reals, booleans and strings. Publish `json.dump(...)` if you need structure.
+Values are scalars: integers, reals, booleans and strings. Prefer a few named
+values such as `power` and `voltage` over a whole response encoded as JSON:
+each reader can use its value directly. If you really need a structured value,
+publish `json.dump(...)`, and parse it only when it changes, never on every frame.
 
 `shared.set(key, nil)` erases the key, which is how a provider retracts a value it can no longer stand behind.
+
+For several views of the same source, let one active script fetch and publish
+the readings. Publish only after a successful update; writing an old reading
+again also resets its age and makes it look fresh. Readers should show `--` or
+another clear fallback when a value is missing or too old. The
+[Modbus example](#share-one-device-across-several-apps) demonstrates this pattern.
 
 **Nothing here survives a reboot,** and nothing survives its author: removing a script - or re-saving it, which restarts it - takes its published keys with it. Readers see `nil` again and fall back to their default. A value that should outlive a power cut belongs in `store`, republished from `setup()`.
 
@@ -1035,6 +1218,12 @@ Keys are 1–24 characters of `A–Z a–z 0–9 _ -`. `shared.set()` returns `f
 `shared` hands other apps a **value**. A module hands them **code**: one file of helpers that any
 script can pull in with `import`, instead of the same twenty lines pasted into four apps.
 
+Use a module when two or more scripts need the same calculation, conversion or
+formatting. They share the loaded helper instead of each keeping its own copy.
+A module does not automatically share the result of a function call: for common
+live readings, use one fetching script and `shared`. Small helpers used by only
+one app can stay in that app.
+
 A module is an ordinary script file with `@module` in the header. It ends by returning what it wants
 to hand out - usually a `module` object with functions on it:
 
@@ -1056,8 +1245,14 @@ Save that as `fmt` and any app can use it:
 import fmt
 
 class Battery
+  var label
+  def init() self.label = "--" end
+  def loop()
+    var value = sensor.battery()
+    self.label = value == nil ? "--" : fmt.pct(value)
+  end
   def draw()
-    text(0, 6, fmt.pct(battery()), rgb(0, 255, 0))
+    text(0, 6, self.label, rgb(0, 255, 0))
   end
 end
 
@@ -1075,7 +1270,7 @@ name from there on.
 can take: letters, digits and `_`, not starting with a digit. If you would rather the file were
 called something else, name the import yourself - `# @module weather` in a file called
 `weather-lib` is imported as `weather`. A name already taken by another module is refused, and so
-are the built-in ones (`json`, `math`, `string`, `global`, `gc`, `strict`, `os`, `sys`, `time`, `debug`, `introspect`, `solidify`), so `import json` never
+are the built-in ones (`json`, `math`, `string`, `modbus`, `global`, `gc`, `strict`, `os`, `sys`, `time`, `debug`, `introspect`, `solidify`), so `import json` never
 stops meaning the built-in `json`.
 
 A module **must end with `return`**. Without one there is nothing to hand out, and the file installs
@@ -1095,6 +1290,11 @@ A module is not an app. It never draws, never takes a turn in the rotation, and 
 The Apps tab lists only the modules there is something to do about there: the ones with settings, and
 any that are broken. It does share everything else with the apps: the same file list, the same
 editor, the same memory.
+
+An HTTP or Modbus helper belongs inside a function that an app calls from its
+`setup()` or `loop()`. Do not start asynchronous reads at the top of a module:
+the callback needs a running app. A helper called by a background script can
+publish through `shared`; its values belong to that background script's name.
 
 ### Settings several apps share
 
@@ -1287,6 +1487,201 @@ The callback is `/ b, st -> self.on_body(b, st)` - a small closure that captures
     Outbound TLS has its own limit: `https://` traffic from a script is encrypted, but the certificate is **not checked**. That is protection against a passive eavesdropper, not against someone who controls the network path.
 
     So: set a login, and use a token scoped to exactly what the script reads and revocable on its own.
+
+### Modbus TCP
+
+Read measurements from an energy meter, inverter or another Modbus TCP device
+on your network. Add `import modbus` to the script. Each app can read a different
+device, with its own address, port and unit ID. There is no global connection to
+configure. Apps that do not use Modbus need no changes.
+
+Enable Modbus TCP on the device you want to read, then look up its register list
+in the manufacturer's manual. You need its IP address, the register address,
+the read function and any scaling factor. Only reading is supported.
+
+#### Display a measurement
+
+This example reads one holding register every ten seconds. Replace
+`192.168.1.50` and address `0` with your device's values. The example assumes
+the register contains tenths of a degree: `235` becomes `23.5`.
+
+```berry
+import modbus
+
+class Temperature
+  var label, next_read, busy
+
+  def init()
+    self.label = "--"
+    self.next_read = 0
+    self.busy = false
+  end
+
+  def received(values, error)
+    self.busy = false
+    if error != 0
+      self.label = "--"
+      log("Modbus error: " + str(error))
+      return
+    end
+    self.label = str(modbus.int16(values[0]) / 10.0)
+  end
+
+  def loop()
+    if self.busy || now_ms() < self.next_read return end
+    self.next_read = now_ms() + 10000
+    self.busy = true
+    modbus.readHoldingRegisters("192.168.1.50", 0, 1,
+      / values, error -> self.received(values, error))
+  end
+
+  def draw()
+    clear()
+    text(1, 6, self.label, 0xFFFFFF)
+  end
+end
+
+return Temperature()
+```
+
+The display keeps running while a read is in progress. The callback receives
+the result once; on failure, `values` is `nil`. Poll in `loop()`, never in
+`draw()`, and wait for an answer before starting another read.
+
+#### Choose what to read
+
+All four calls take `(host, address, count, callback, opts?)`:
+
+| Call | Reads | Maximum count |
+|---|---|---|
+| `modbus.readHoldingRegisters(...)` | holding registers, function 03 | 125 |
+| `modbus.readInputRegisters(...)` | input registers, function 04 | 125 |
+| `modbus.readCoils(...)` | coils, function 01 | 2000 |
+| `modbus.readDiscreteInputs(...)` | digital inputs, function 02 | 2000 |
+
+`host` is an IP address or hostname, without `http://`. `address` is **zero-based**:
+if the manual labels the first holding register `40001`, its address is usually
+`0`. Some manuals already give zero-based addresses; use those directly.
+Addresses range from `0` to `65535`. `count` must be at least `1` and must not
+extend beyond that range.
+
+The callback gets a list in address order. Registers are numbers from `0` to
+`65535`; coils and digital inputs are `0` or `1`. `values[0]` is the first
+requested value.
+
+The optional settings select the TCP port and unit ID. Defaults are port `502`
+and unit `1`. Use the unit ID specified by your device, especially when reading
+through a gateway.
+
+```berry
+modbus.readInputRegisters("192.168.1.60", 100, 2,
+  / values, error -> self.received(values, error),
+  {'port': 502, 'unit': 2})
+```
+
+Ports range from `1` to `65535`, unit IDs from `0` to `255`. Each call can use
+different settings, including calls from the same app.
+
+#### Convert the values
+
+Follow the data type and register order in your device's manual:
+
+| Device data type | Conversion |
+|---|---|
+| unsigned 16-bit integer | `values[0]` |
+| signed 16-bit integer | `modbus.int16(values[0])` |
+| signed 32-bit integer | `modbus.int32(values[0], values[1])` |
+| 32-bit float | `modbus.float32(values[0], values[1])` |
+
+For a 32-bit value, request two registers. The helpers take the high word first.
+If your device uses low-word-first order, pass `values[1], values[0]` instead.
+Apply any scaling afterwards, for example `/ 10.0` or `/ 1000.0`.
+
+#### Share one device across several apps
+
+If several apps show readings from the same device, **read them once and share
+the results**. A [background script](#running-without-ever-being-shown) can poll
+the device and publish its values through [`shared`](#talking-to-other-apps).
+The display apps then only read the values they need. This avoids duplicate
+requests and saves memory for separate callbacks and result lists.
+
+An imported module can also use `modbus` inside a function called by an app.
+Modules have no `loop()` of their own, so use a background script for regular
+polling. Calling the same module from every display app would still create
+separate requests.
+
+For example, save this background script as **`meter`**. It reads two adjacent
+holding registers: power in watts and voltage in tenths of a volt. Adjust the
+host, starting address and conversions to match your device's manual.
+
+```berry
+# @headless true
+import modbus
+
+class Meter
+  var next_read, busy
+
+  def init()
+    self.next_read = 0
+    self.busy = false
+  end
+
+  def received(values, error)
+    self.busy = false
+    if error != 0 return end
+    shared.set("power", values[0])
+    shared.set("voltage", values[1] / 10.0)
+  end
+
+  def loop()
+    if self.busy || now_ms() < self.next_read return end
+    self.next_read = now_ms() + 10000
+    self.busy = true
+    modbus.readHoldingRegisters("192.168.1.50", 0, 2,
+      / values, error -> self.received(values, error))
+  end
+end
+
+return Meter()
+```
+
+The power app needs no Modbus import. It shows `--` if no reading has arrived
+or the last successful reading is more than 30 seconds old:
+
+```berry
+class Power
+  var label
+  def init() self.label = "--" end
+  def loop()
+    var age = shared.age("meter.power")
+    if age != nil && age <= 30000
+      self.label = str(shared.get("meter.power")) + " W"
+    else
+      self.label = "--"
+    end
+  end
+  def draw()
+    clear()
+    text(1, 6, self.label, 0xFFFFFF)
+  end
+end
+
+return Power()
+```
+
+For a second app showing voltage, use `meter.voltage` instead of `meter.power`
+and `" V"` instead of `" W"`. If you give the background script a different
+name, use that name before the dot in both display apps.
+
+#### When a read fails
+
+`error` is `0` on success. `-1` means the read could not be completed: check the
+host, port, Wi-Fi connection and arguments, then retry on your next polling
+interval. Reads may take longer when other apps are also fetching data.
+
+A positive error code comes from the Modbus device. Common codes are `1`
+(unsupported function), `2` (unknown register), `3` (unsupported value or count),
+`4` (device failure) and `6` (device busy). Check the device manual for details.
 
 ### Regular expressions
 
@@ -1960,9 +2355,9 @@ how you write scripts: the instruction limit above, and how much memory the scri
 AWTRIX share.
 
 **How many scripts fit** comes down to memory - [modules](#sharing-code-between-scripts)
-included, since they take the same memory. On a board without PSRAM - any 4 MB ESP32 - every
-script shares about 96 KB with the icon decoder, the pushed apps holding their content, and the
-room an HTTPS handshake needs. A handful of scripts is comfortable; a handful of scripts *and* a
+included, since they take the same memory. On a board without usable PSRAM, all scripts share
+a Berry heap budget of 96 KB. The icon decoder, pushed apps and HTTPS handshakes need additional
+memory from the same internal RAM. A handful of scripts is comfortable; a handful of scripts *and* a
 long list of pushed apps is where installs start being refused. An **ESP32-S3 with PSRAM** raises
 that ceiling to megabytes on the same build, with nothing to configure - AWTRIX decides at
 boot. If you want to push scripting hard, that is the board to be on.

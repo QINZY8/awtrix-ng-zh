@@ -101,3 +101,40 @@ previously displayed app. No icon files or settings are changed.
 ```bash
 python tools/devicetest/gif.py --host 192.168.178.39
 ```
+
+## Modbus TCP
+
+`modbus.py` starts two simulated Modbus devices on the PC and installs temporary
+apps that read both endpoints. It checks all four read functions, float conversion,
+fragmented replies, exceptions, malformed packets, disconnects, timeouts, maximum
+read sizes and the displayed values. The apps are removed and the previous app is
+restored afterwards. Use the PC's LAN address for `--bind`:
+
+```bash
+python tools/devicetest/modbus.py --host 192.168.178.63 --bind 192.168.178.165 --output .pio/modbus-result.json
+```
+
+The same test works against the local simulator with
+`--host 127.0.0.1:8080 --bind 127.0.0.1`.
+`--auth user:pass` is supported for devices with a login.
+
+## Timers and button events
+
+`events.py` checks timer delays, limits, cancellation, background execution,
+deactivation, callback errors and replacing an app. It removes its temporary
+scripts and restores the previous app order afterwards.
+
+```bash
+python tools/devicetest/events.py --host 192.168.178.63 --output .pio/events-result.json
+```
+
+To also check short presses, holding, repeats, release, legacy handlers and normal
+navigation, run against the simulator with `--sim-buttons`:
+
+```bash
+python tools/devicetest/events.py --host 127.0.0.1:8080 --sim-buttons
+```
+
+The simulator injects button states through its normal debounce path. A real
+physical-button test still needs connected buttons; the device has no remote
+button-injection endpoint. `--auth user:pass` is supported.

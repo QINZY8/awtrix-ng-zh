@@ -17,8 +17,8 @@ void save(const std::string& json) {
 void load(CoreEngine& engine) {
   File f = LittleFS.open("/apploop.json", "r");
   if (!f) {
-    // First boot: no saved arrangement yet. Hide the apps this build does not want in the
-    // rotation by default, so a fresh device starts quiet instead of showing everything.
+    // A fresh device has no saved order, and the Battery app is meaningless on a
+    // board with no battery wired, so it starts the rotation switched off.
     engine.setAppOrder("{\"disabled\":[\"Battery\"]}");
     return;
   }
