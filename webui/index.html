@@ -1714,6 +1714,7 @@ const FIELDS={
  transitionDirection:F('apps','select','Transition direction|Übergangsrichtung|切换方向','Flips movement for directional effects.|Kehrt die Bewegung gerichteter Effekte um.|反转方向性特效的运动。',{opt:[
    ['normal','Normal|Normal|正向'],['reverse','Reverse|Umgekehrt|反向']]}),
  blockNavigation:F('apps','toggle','Block buttons|Tasten sperren|锁定按键','Ignore buttons and API for app switching.|App-Wechsel per Taste und API ignorieren.|忽略按键和 API 的应用切换。'),
+ randomAppOrder:F('apps','toggle','Random order|Zufällige Reihenfolge|随机顺序','Show apps in a random order instead of the saved one.|Apps in zufälliger Reihenfolge statt der gespeicherten anzeigen.|以随机顺序显示应用，而非保存的顺序。'),
  timeMode:F('clock','select','Clock layout|Uhr-Layout|时钟布局','What the clock app draws.|Was die Uhr-App zeichnet.|时钟应用绘制的内容。',{opt:[
    [0,'Time only|Nur Uhrzeit|仅时间'],[1,'Calendar, weekday bar below|Kalenderblatt, Wochentage unten|日历，下方星期条'],
    [2,'Calendar, weekday bar on top|Kalenderblatt, Wochentage oben|日历，上方星期条'],[3,'Spiral calendar, weekday below|Ringkalender, Wochentage unten|螺旋日历，下方星期条'],
@@ -2006,7 +2007,6 @@ const SYSF={
  powerOnMinute:F('autooff','number','Power on minute|Einschalt-Minute|开机时间（分钟）','Minute of the scheduled power on.|Minute der geplanten Einschaltung.|定时开机的分钟。',{min:0,max:59}),
  lightOnThreshold:F('autooff','number','Light on above|Helligkeit zum Einschalten|光照高于此值开机','Light level percent above which the matrix turns on. -1 = disabled.|Helligkeit in Prozent, über der die Matrix einschaltet. -1 = deaktiviert.|光照强度百分比高于此值时打开矩阵。-1 = 禁用。',{min:-1,max:100,unit:'%'}),
  lightOffThreshold:F('autooff','number','Light off below|Helligkeit zum Ausschalten|光照低于此值关机','Light level percent below which the matrix turns off. -1 = disabled.|Helligkeit in Prozent, unter der die Matrix ausschaltet. -1 = deaktiviert.|光照强度百分比低于此值时关闭矩阵。-1 = 禁用。',{min:-1,max:100,unit:'%'}),
- randomAppOrder:F('autooff','toggle','Random order|Zufällige Reihenfolge|随机顺序','Show apps in a random order instead of the saved one.|Apps in zufälliger Reihenfolge statt der gespeicherten anzeigen.|以随机顺序显示应用，而非保存的顺序。'),
 };
 const SYS_GROUPS=[['wifi','grpWifi','grpWifiH'],['web','grpWeb','grpWebH'],['mqtt','grpMqtt','grpMqttH'],
  ['time','grpTime','grpTimeH'],['panel','grpPanel','grpPanelH'],['hw','grpHw','grpHwH'],
