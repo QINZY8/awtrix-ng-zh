@@ -946,10 +946,8 @@ const I18N={en:{
   maint:'Maintenance',mainthelp:'Firmware updates and resets.',
   apmaintH:'Restart AWTRIX to apply the WiFi settings you saved.',
   fwfile:'Upload firmware (.bin)',
-  update:'Firmware update',updchk:'Check for updates',updchecking:'Checking GitHub…',
-  updcur:'{v} is the latest release.',updnew:'{v} is available',updfail:'Could not check for updates. Try again later.',updrate:'GitHub’s limit for anonymous requests from this internet connection has been reached. Try again later.',
-  updnotes:'Release notes',updavail:'update available',
-  updinstall:'Download & install',upddownloading:'Downloading firmware…',upduploading:'Uploading firmware…',updnotready:'The download is not ready for this release. Try again shortly or upload the file manually.',updbadfile:'Firmware verification failed. Nothing was uploaded. Try again.',updbusy:'A firmware update is already running.',
+  update:'Firmware update',
+  upduploading:'Uploading firmware…',updbusy:'A firmware update is already running.',
   resetset:'Reset settings',resetsetH:'Resets display settings to defaults (network stays).',
   factory:'Factory reset',factoryH:'Erases EVERYTHING (WiFi, files, settings). Type the hostname to confirm.',
   erase:'Erase everything',eraseNo:'Hostname does not match',
@@ -1136,10 +1134,8 @@ const I18N={en:{
   maint:'Wartung',mainthelp:'Firmware-Updates und Zurücksetzen.',
   apmaintH:'Neustart, damit die gespeicherten WLAN-Einstellungen wirken.',
   fwfile:'Firmware hochladen (.bin)',
-  update:'Firmware-Update',updchk:'Nach Update suchen',updchecking:'Frage GitHub…',
-  updcur:'{v} ist die neueste Version.',updnew:'{v} ist verfügbar',updfail:'Update-Prüfung fehlgeschlagen. Bitte später erneut versuchen.',updrate:'GitHubs Limit für anonyme Anfragen über diesen Internetanschluss ist erreicht. Bitte später erneut versuchen.',
-  updnotes:'Release Notes',updavail:'Update verfügbar',
-  updinstall:'Herunterladen & installieren',upddownloading:'Firmware wird heruntergeladen…',upduploading:'Firmware wird hochgeladen…',updnotready:'Der Download für diese Version ist noch nicht bereit. Bitte später erneut versuchen oder die Datei manuell hochladen.',updbadfile:'Firmware-Prüfung fehlgeschlagen. Es wurde nichts hochgeladen. Bitte erneut versuchen.',updbusy:'Ein Firmware-Update läuft bereits.',
+  update:'Firmware-Update',
+  upduploading:'Firmware wird hochgeladen…',updbusy:'Ein Firmware-Update läuft bereits.',
   resetset:'Einstellungen zurücksetzen',resetsetH:'Setzt Anzeige-Einstellungen auf Standard zurück (Netzwerk bleibt).',
   factory:'Werkseinstellungen',factoryH:'Löscht ALLES (WLAN, Dateien, Einstellungen). Zur Bestätigung Hostname eintippen.',
   erase:'Alles löschen',eraseNo:'Hostname stimmt nicht überein',
@@ -1406,15 +1402,7 @@ const I18N={en:{
   apmaintH:'重启 AWTRIX 以应用你保存的 WiFi 设置。',
   fwfile:'上传固件（.bin）',
   update:'固件更新',
-  updchk:'检查更新',
-  updchecking:'正在检查 GitHub…',
-  updcur:'{v} 是最新版本。',
-  updnew:'{v} 已发布',
-  updfail:'无法访问 GitHub。请检查网络连接后重试。',
-  upddl:'下载',
-  updnotes:'发行说明',
-  updavail:'有可用更新',
-  updhelp:'下载文件，然后在“上传固件”中选择它。',
+  upduploading:'正在上传固件…',updbusy:'固件更新已在进行中。',
   resetset:'重置设置',
   resetsetH:'将显示设置重置为默认值（网络保持不变）。',
   factory:'恢复出厂',
@@ -2643,9 +2631,8 @@ function viewDash(view){
   view.append(vg,meta);
   function renderVitals(st){
     vg.replaceChildren(...vitalDefs(st).map(vitalTile));
-    const upd=updAvailable(updCached());
     meta.replaceChildren(
-      upd?metaItem(t('version'),st.version+' → '+upd.version+' '+t('updavail'),'warn'):metaItem(t('version'),st.version),
+      metaItem(t('version'),st.version),
       metaItem(t('host'),st.hostname||S.sysHost),metaItem(t('ip'),st.ipAddress),
       metaItem(t('uptime'),uptimeStr(st.uptimeSeconds)),
       metaItem(t('ram'),fmtBytes(st.freeHeapBytes)),
@@ -4089,118 +4076,19 @@ function progressRow(){
     hide(){row.style.display='none';},
     set(p){fill.style.width=(p*100).toFixed(1)+'%';}};
 }
-const RELEASES_API='https://api.github.com/repos/Blueforcer/awtrix-ng/releases/latest';
-const OTA_BASE='https://blueforcer.github.io/awtrix-ng/firmware/ota/';
 let firmwareBusy=false;
-const UPD_KEY='awtrixUpdate';
-const UPD_TTL_MS=6*3600*1000;
-const verParts=v=>String(v||'').replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0);
-function verNewer(a,b){
-  const x=verParts(a),y=verParts(b);
-  for(let i=0;i<3;i++)if((x[i]||0)!==(y[i]||0))return(x[i]||0)>(y[i]||0);
-  return false;
-}
-function updCached(){
-  try{const c=JSON.parse(localStorage.getItem(UPD_KEY)||'null');if(c&&Date.now()-c.at<UPD_TTL_MS)return c;}catch(e){}
-  return null;
-}
-async function updCheck(){
-  if(navigator.onLine===false)throw new Error(t('updfail'));
-  const r=await fetch(RELEASES_API,{headers:{Accept:'application/vnd.github+json'},cache:'no-store',signal:AbortSignal.timeout(10000)});
-  if(!r.ok)throw new Error(t((r.status===403&&r.headers?.get('x-ratelimit-remaining')==='0')||r.status===429?'updrate':'updfail'));
-  const j=await r.json();
-  const assets={};
-  for(const a of j.assets||[])if(a&&a.name)assets[a.name]=a.browser_download_url;
-  const c={at:Date.now(),version:String(j.tag_name||'').replace(/^v/,''),usable:!j.draft&&!j.prerelease,
-    published:String(j.published_at||'').slice(0,10),notes:j.html_url||'',assets};
-  try{localStorage.setItem(UPD_KEY,JSON.stringify(c));}catch(e){}
-  return c;
-}
-function updAvailable(c){
-  const run=S.stats&&S.stats.version;
-  return c&&c.usable&&run&&verNewer(c.version,run)?c:null;
-}
-async function downloadFirmware(release,onProgress){
-  const image=S.stats&&S.stats.updateImage;
-  if(!['firmware-awtrix-ng.bin','firmware-awtrix-ng-s3-octal.bin','firmware-awtrix-ng-s3-quad.bin'].includes(image))throw new Error(t('updnotready'));
-  const options={credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(120000)};
-  const response=await fetch(OTA_BASE+'index.json',options);
-  if(!response.ok)throw new Error(t('updnotready'));
-  const manifest=await response.json();
-  const asset=manifest.assets&&manifest.assets[image];
-  if(manifest.version!=='v'+release.version||!/^v\d+\.\d+\.\d+$/.test(manifest.version)||!asset)throw new Error(t('updnotready'));
-  if(!Number.isSafeInteger(asset.size)||asset.size<256||asset.size>16*1024*1024||!/^[a-f0-9]{64}$/.test(asset.sha256))throw new Error(t('updbadfile'));
-  const r=await fetch(OTA_BASE+manifest.version+'/'+image,options);
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const reader=r.body.getReader(),bytes=new Uint8Array(asset.size);
-  let offset=0;
-  try{
-    for(;;){
-      const {done,value}=await reader.read();
-      if(done)break;
-      if(offset+value.length>bytes.length)throw new Error(t('updbadfile'));
-      bytes.set(value,offset);offset+=value.length;onProgress(offset/bytes.length);
-    }
-  }finally{await reader.cancel();}
-  if(offset!==asset.size||bytes[0]!==0xe9||iconSha256(bytes)!==asset.sha256)throw new Error(t('updbadfile'));
-  return new File([bytes],image,{type:'application/octet-stream'});
-}
-function updateRow(install){
-  let available=null;
-  const installBtn=armable(el('button',{id:'upd-install','aria-label':t('updchk')},t('updchk')),()=>{
-    if(available)install(available);else show(true);
-  },()=>!!available);
-  const notes=el('a',{id:'upd-notes',style:'padding:4px;line-height:0',href:'#',target:'_blank',rel:'noopener',title:t('updnotes'),'aria-label':t('updnotes')},icon('file'));
-  const status=el('div',{id:'upd-status',class:'help'},'');
-  notes.hidden=true;
-  async function show(force){
-    if(firmwareBusy)return;
-    available=null;
-    const cached=updCached();
-    status.textContent=t('version')+' '+((S.stats&&S.stats.version)||'');
-    if(!force&&!cached)return;
-    installBtn.disabled=true;if(force)status.textContent=t('updchecking');
-    try{
-      const avail=updAvailable(force?await updCheck():cached);
-      const img=S.stats&&S.stats.updateImage;
-      if(avail){
-        status.textContent=t('updnew').replace('{v}',avail.version)+(avail.published?' ('+avail.published+')':'');
-        if(img&&avail.assets[img]){available=avail;installBtn.disabled=false;}
-        notes.hidden=!avail.notes;
-        if(!notes.hidden)notes.href=avail.notes;
-      }else{
-        status.textContent=t('updcur').replace('{v}',(S.stats&&S.stats.version)||'');
-        notes.hidden=true;
-      }
-    }catch(e){status.textContent=t('version')+' '+((S.stats&&S.stats.version)||'');notes.hidden=true;toast(e.message===t('updrate')?e.message:t('updfail'),false);}
-    installBtn.textContent=t(available?'updinstall':'updchk');
-    installBtn.setAttribute('aria-label',installBtn.textContent);
-    installBtn.disabled=false;
-  }
-  show(false);
-  return el('div',{class:'frow'},
-    el('div',{class:'lab'},el('div',{class:'l1'},el('b',null,t('update'))),status),
-    el('div',{class:'ctl'},[notes,installBtn]));
-}
 function maintenanceSection(page){
   const fwIn=el('input',{type:'file',accept:'.bin'});
   const fwBtn=el('button',null,t('choose'));
   const fw=progressRow();
   fwBtn.addEventListener('click',()=>fwIn.click());
   const fwStatus=el('div',{id:'fw-status',class:'help',role:'status'},'');
-  async function installFirmware(source){
+  async function installFirmware(file){
     if(firmwareBusy){toast(t('updbusy'),false);return;}
     firmwareBusy=true;fwBtn.disabled=true;fw.show();
     const warn=e=>{e.preventDefault();e.returnValue='';};
     window.addEventListener('beforeunload',warn);
-    const installBtn=document.getElementById('upd-install');
-    if(installBtn)installBtn.disabled=true;
     try{
-      let file=source;
-      if(!(source instanceof File)){
-        fwStatus.textContent=t('upddownloading');
-        file=await downloadFirmware(source,p=>{fw.set(p);fwStatus.textContent=t('upddownloading')+' '+Math.round(p*100)+'%';});
-      }
       fw.set(0);fwStatus.textContent=t('upduploading');
       const x=await xhrPost('/update','firmware',file,file.name,
         p=>{fw.set(p);fwStatus.textContent=t('upduploading')+' '+Math.round(p*100)+'%';},120000);
@@ -4211,7 +4099,7 @@ function maintenanceSection(page){
       setTimeout(()=>location.reload(),12000);
     }catch(e){
       fwStatus.textContent='';toast(e.message,false);fw.hide();
-      firmwareBusy=false;fwBtn.disabled=false;if(installBtn)installBtn.disabled=false;
+      firmwareBusy=false;fwBtn.disabled=false;
       window.removeEventListener('beforeunload',warn);
     }
   }
@@ -4230,7 +4118,6 @@ function maintenanceSection(page){
     catch(e){toast(e.message,false);eraseBtn.disabled=false;}
   });
   page.section('maint',t('maint'),t('mainthelp'),[
-    updateRow(installFirmware),
     actionRow(t('fwfile'),null,[fwBtn,fwIn]),
     fwStatus,fw.row,
     actionRow(t('reboot'),null,[rebootBtn]),
