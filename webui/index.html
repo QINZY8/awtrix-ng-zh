@@ -1704,7 +1704,7 @@ const OVERLAYS=['rain','snow','drizzle','storm','thunder','frost'];
 const NULLABLE={timeColor:'#000000',dateColor:'#000000',humidityColor:'#000000',
  temperatureColor:'#000000',batteryColor:'#000000',colorCorrection:'#FFFFFF',colorTint:'#FFFFFF'};
 const FIELDS={
- brightness:F('bright','slider','Brightness|Helligkeit|亮度','Ignored while auto brightness is on.|Ohne Wirkung bei automatischer Helligkeit.|自动亮度开启时无效。',{min:0,max:255}),
+ brightness:F('bright','slider','Brightness|Helligkeit|亮度','Ignored while auto brightness is on.|Ohne Wirkung bei automatischer Helligkeit.|自动亮度开启时无效。',{min:0,max:200}),
  autoBrightness:F('bright','toggle','Auto brightness|Automatische Helligkeit|自动亮度','Follows the ambient light sensor.|Folgt dem Umgebungslichtsensor.|跟随环境光传感器。'),
  power:F('bright','toggle','Display on|Anzeige an|屏幕开启','Turns the matrix off without cutting power.|Schaltet die Matrix aus, ohne den Strom zu trennen.|关闭矩阵但不切断电源。'),
  appDurationMs:F('apps','number','Time per app|Zeit pro App|每个应用时长','How long each app stays.|Wie lange jede App bleibt.|每个应用持续的时间。',{min:1000,max:3600000,step:500,unit:'ms'}),

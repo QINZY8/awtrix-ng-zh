@@ -76,7 +76,7 @@ const char* const kTransitionDirectionNames[] = {"normal", "reverse"};
 
 constexpr Field kFields[] = {
     mkBool("autoBrightness", &Settings::autoBrightness),
-    mkInt("brightness", &Settings::brightness, 0, 255),
+  mkInt("brightness", &Settings::brightness, 0, 200),
     mkBool("autoTransition", &Settings::autoTransition),
     mkColor("textColor", &Settings::textColor),
     mkTransition("transitionEffect", &Settings::transitionEffect),

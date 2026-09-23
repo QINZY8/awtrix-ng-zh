@@ -90,7 +90,7 @@ void SimPeriphery::tick(int64_t nowMs) {
     if (s.autoBrightness) {
       bri = brightnessFromLightLevel(rt.lightLevel, lightConfig());
     } else {
-      bri = static_cast<uint8_t>(s.brightness < 0 ? 0 : (s.brightness > 255 ? 255 : s.brightness));
+      bri = static_cast<uint8_t>(s.brightness < 0 ? 0 : (s.brightness > 200 ? 200 : s.brightness));
     }
     rt.brightnessActual = bri;
     board_->setBrightness(bri);

@@ -123,7 +123,7 @@ void PeripheryService::tick(int64_t nowMs) {
       if (!wasAutoBrightness_) briSmoother_.reset(bri);
       bri = briSmoother_.apply(bri, kLdrIntervalMs);
     } else {
-      bri = static_cast<uint8_t>(s.brightness < 0 ? 0 : (s.brightness > 255 ? 255 : s.brightness));
+      bri = static_cast<uint8_t>(s.brightness < 0 ? 0 : (s.brightness > 200 ? 200 : s.brightness));
       briSmoother_.reset(bri);
     }
     wasAutoBrightness_ = s.autoBrightness;
