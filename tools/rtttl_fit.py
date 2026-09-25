@@ -128,14 +128,21 @@ def render(notes: list[dict], default_dur: int, default_oct: int) -> str:
     return ",".join(out)
 
 
-def fit(melody: str, max_chars: int = MAX_LENGTH) -> tuple[str, set, int]:
-    """Return (rtttl, warnings, dropped_notes)."""
+def fit(melody: str, max_chars: int = MAX_LENGTH, tempo_bpm: int | None = None) -> tuple[str, set, int]:
+    """Return (rtttl, warnings, dropped_notes).
+
+    tempo_bpm overrides the melody's own tempo, which is how a tune that plays
+    too fast is slowed down without touching its notes.
+    """
     name, defaults, tokens = parse(melody)
     notes = [split_note(t, defaults) for t in tokens]
 
     warnings: set[str] = set()
     scale = normalise(notes, warnings)
-    tempo = max(10, min(300, round(defaults["b"] * scale)))
+    tempo = tempo_bpm if tempo_bpm else max(10, min(300, round(defaults["b"] * scale)))
+    if tempo_bpm:
+        warnings.add(f"tempo {defaults['b']}->{tempo_bpm}")
+    tempo = max(10, min(300, tempo))
 
     # The default octave and duration are free, so pick the commonest of each:
     # every note that matches drops a digit, which is the cheapest way to buy
@@ -195,6 +202,8 @@ def main() -> int:
     ap.add_argument("--upload", metavar="IP", help="PUT the result onto this device")
     ap.add_argument("--name", help="override the melody name when uploading")
     ap.add_argument("--max-chars", type=int, default=MAX_LENGTH)
+    ap.add_argument("--bpm", type=int,
+                    help="override the tempo, to slow a melody that plays too fast")
     args = ap.parse_args()
 
     if args.file:
@@ -206,7 +215,7 @@ def main() -> int:
         ap.error("give a melody or --file")
 
     try:
-        out, warnings, dropped = fit(melody, args.max_chars)
+        out, warnings, dropped = fit(melody, args.max_chars, args.bpm)
     except FitError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
