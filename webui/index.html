@@ -966,6 +966,7 @@ const I18N={en:{
   edUnreachable:'The editor did not load.',
   edIconOpenError:'The icon could not be opened.',
   melodies:'Melodies',melodieshelp:'Short ringtones, for notifications and scripts.',
+  mixer:'Volume',mixerhelp:'Master level plus one slider per output this build has.',
   newmelo:'New melody',meloname:'Name',melortttl:'d=4,o=5,b=120:c,e,g',
   melopre:'Preview here',meloprestop:'Stop preview',meloplay:'Play on AWTRIX',melostop:'Stop on AWTRIX',
   melomuted:'Sound is off - playing on AWTRIX stays silent. Turn it on under System › Audio.',
@@ -1154,6 +1155,7 @@ const I18N={en:{
   edUnreachable:'Der Editor wurde nicht geladen.',
   edIconOpenError:'Das Icon konnte nicht geöffnet werden.',
   melodies:'Melodien',melodieshelp:'Kurze Klingeltöne für Meldungen und Skripte.',
+  mixer:'Lautstärke',mixerhelp:'Gesamtpegel und ein Regler pro vorhandenem Ausgang.',
   newmelo:'Neue Melodie',meloname:'Name',melortttl:'d=4,o=5,b=120:c,e,g',
   melopre:'Hier anhören',meloprestop:'Vorschau stoppen',meloplay:'Auf AWTRIX abspielen',melostop:'Auf AWTRIX stoppen',
   melomuted:'Ton ist aus - Abspielen auf AWTRIX bleibt stumm. Einschalten unter System › Audio.',
@@ -1444,6 +1446,8 @@ const I18N={en:{
   edIconOpenError:'无法打开该图标。',
   melodies:'旋律',
   melodieshelp:'用于通知和脚本的短提示音。',
+  mixer:'音量',
+  mixerhelp:'总音量，以及每个可用输出的独立音量。',
   newmelo:'新建旋律',
   meloname:'名称',
   melortttl:'d=4,o=5,b=120:c,e,g',
@@ -1978,10 +1982,10 @@ const SYSF={
  pinI2sDout:F('gpio','number','I2S DOUT|I2S DOUT|I2S DOUT','Same DAC, data.|Selber DAC, Daten.|同一 DAC，数据。',{min:-1,max:39}),
  pinI2sMclk:F('gpio','number','I2S MCLK|I2S MCLK|I2S MCLK','Only some DACs need it.|Brauchen nur manche DACs.|仅部分 DAC 需要。',{min:-1,max:39}),
  pinAmpEnable:F('gpio','number','Amplifier enable|Verstärker-Enable|功放使能','Switches the amplifier on.|Schaltet den Verstärker ein.|开启功放。',{min:-1,max:39}),
- soundEnabled:F('sndhw','toggle','Sound|Ton|声音','Master switch for one-shot sounds. Radio keeps playing.|Hauptschalter für Einzelklänge. Radio läuft weiter.|单次音效的总开关。电台继续播放。',{api:'settings'}),
- buzzerVolume:F('sndhw','slider','Buzzer volume|Buzzer-Lautstärke|蜂鸣器音量','RTTTL melodies.|RTTTL-Melodien.|RTTTL 旋律。',{min:0,max:100,api:'settings'}),
- dfplayerVolume:F('sndhw','slider','DFPlayer volume|DFPlayer-Lautstärke|DFPlayer 音量','Tracks.|Titel.|曲目。',{min:0,max:100,api:'settings'}),
- mp3Volume:F('sndhw','slider','MP3 volume|MP3-Lautstärke|MP3 音量','Stored MP3s.|Gespeicherte MP3s.|已存储的 MP3。',{min:0,max:100,api:'settings'}),
+ // v1.2.2 replaced the per-output volumes with a mixer: master, apps, alerts, radio.
+ volume:F('sndhw','slider','Master volume|Gesamtlautstärke|总音量','All sound output. 0 mutes everything.|Alle Tonausgabe. 0 schaltet alles stumm.|所有声音输出，0 为静音。',{min:0,max:100,api:'settings'}),
+ appVolume:F('sndhw','slider','App volume|App-Lautstärke|应用音量','Script sounds, melodies and stored audio.|Script-Töne, Melodien und gespeichertes Audio.|脚本音效、旋律与已存音频。',{min:0,max:100,api:'settings'}),
+ alertVolume:F('sndhw','slider','Alert volume|Alarm-Lautstärke|提示音量','Notifications and alarms.|Benachrichtigungen und Alarme.|通知与警报。',{min:0,max:100,api:'settings'}),
  radioVolume:F('sndhw','slider','Radio volume|Radio-Lautstärke|电台音量','Internet radio.|Internetradio.|网络电台。',{min:0,max:100,api:'settings'}),
  radioMeta:F('sndhw','toggle','Radio track info|Radio-Titelanzeige|电台曲目信息','Show the station and every new track title.|Sender und jeden neuen Titel anzeigen.|显示电台和每个新曲目标题。',{api:'settings'}),
  dfplayer:F('sndhw','toggle','DFPlayer|DFPlayer|DFPlayer','External audio module on the DFPlayer pins. |Externes Audiomodul an den DFPlayer-Pins.|DFPlayer 引脚上的外部音频模块。'),
@@ -3906,12 +3910,12 @@ async function viewSystem(view){
     }catch(e){}
     // One slider per output, each shown only where that output exists.
     const g=on=>on?'sndhw':'hidden';
-    SYSF.buzzerVolume.g=g(hasSink('buzzer'));
-    SYSF.dfplayerVolume.g=g(hasSink('track'));
-    SYSF.mp3Volume.g=g(hasSink('mp3'));
+    const anyOut=hasSink('buzzer','track','mp3','radio');
+    SYSF.volume.g=g(anyOut);
+    SYSF.appVolume.g=g(anyOut);
+    SYSF.alertVolume.g=g(anyOut);
     SYSF.radioVolume.g=g(hasSink('radio'));
     SYSF.radioMeta.g=g(hasSink('radio'));
-    SYSF.soundEnabled.g=g(hasSink('buzzer','track','mp3'));
   }
   ['wifiPass','mqttPass','authPass'].forEach(k=>{if(!(k in data))data[k]='';});
   (S.ap?provisioningPage:systemPage)(view,data);
@@ -5205,21 +5209,24 @@ async function viewAudio(view){
   (async()=>{
     try{
       const{data}=await api('/api/v1/settings');
-      muted.style.display=data.soundEnabled===false?'':'none';
+      muted.style.display=data.volume===0?'':'none';
       vols.forEach(([k,f])=>{if(k in data)f.set(data[k]);});
     }catch(e){}
   })();
 
   let markMp3=()=>{},storage=null;
+  // v1.2.2 replaced the per-output volumes with one mixer; a level is set once, not twice.
+  const mixKeys=['volume'].concat(hasSink('radio')?['radioVolume']:[],['appVolume','alertVolume']);
+  section('mixer',t('mixer'),t('mixerhelp'),mixKeys.map(k=>withVol(k,[])[0]),1);
   if(hasSink('mp3')){
     const mp3s=mp3Section();
     markMp3=mp3s.mark;
-    section('mp3',t('mp3s'),t('mp3shelp'),withVol('mp3Volume',mp3s.nodes),1);
+    section('mp3',t('mp3s'),t('mp3shelp'),mp3s.nodes,1);
     storage=mp3s.storSlot;
   }
   if(hasSink('radio')){
     section('radio',t('radioTab'),t('radioH'),
-      withVol('radioVolume',radioSection(d=>markMp3(d.mp3.playing?d.mp3.name:''))),1);
+      radioSection(d=>markMp3(d.mp3.playing?d.mp3.name:'')),1);
   }else if(hasSink('mp3')){
     // No radio section polling on this build, so the MP3 indicator needs its own timer.
     const refresh=async()=>{
@@ -5232,7 +5239,7 @@ async function viewAudio(view){
     poller(refresh,4000);
   }
   if(hasSink('buzzer'))
-    section('melodies',t('melodies'),t('melodieshelp'),withVol('buzzerVolume',melodiesSection()),1);
+    section('melodies',t('melodies'),t('melodieshelp'),melodiesSection(),1);
   if(storage)panel.prepend(storage);
 }
 const PAL_MAX=16;
