@@ -191,7 +191,7 @@ function melodiesSection(){
     function check(){
       const p=rtttlParse(full()),n=name(),rt=rtIn.value.trim();
       const nameOk=/^[A-Za-z0-9_-]{1,24}$/.test(n),dup=n!==orig&&saved.includes(n);
-      const err=rt&&!p.ok?p.error:dup?t('meloexists'):n&&!nameOk?t('melobadname'):'';
+      const err=rt&&!p.ok?tx(p.error):dup?t('meloexists'):n&&!nameOk?t('melobadname'):'';
       f.classList.toggle('bad',!!err);
       msg.replaceChildren(err||(p.ok?meloInfo(p):''));
       save.disabled=!(p.ok&&nameOk&&!dup&&(n!==orig||rt!==body));

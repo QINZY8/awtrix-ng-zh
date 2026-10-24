@@ -13,7 +13,7 @@ function el(tag,attrs,...kids){
   return n;
 }
 function toast(msg,ok=true,actions){
-  const d=el('div',{class:'toast'+(ok?'':' err'),role:ok?'status':'alert'},msg);
+  const d=el('div',{class:'toast'+(ok?'':' err'),role:ok?'status':'alert'},tx(msg));
   if(actions&&actions.length){
     d.append(el('div',{class:'tacts'},...actions.map(a=>{
       const b=el('button',{class:a.pri?'pri':''},a.label);

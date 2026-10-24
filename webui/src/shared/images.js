@@ -86,7 +86,7 @@ async function iconAsGif(file,name){
   try{bmp=await createImageBitmap(file);}catch(e){throw new Error(t('idbe_badFormat'));}
   const w=bmp.width,h=bmp.height,{width:mw,height:mh}=displayGeometry();
   if(bmp.close)bmp.close();
-  if(w>mw||h>mh)throw new Error('Image must fit the panel: '+mw+' × '+mh);
+  if(w>mw||h>mh)throw new Error(tx('Image must fit the panel: ')+mw+' × '+mh);
   return{blob:await imgToGif(file),name:String(name).replace(/\.[^.]+$/,'')+'.gif'};
 }
 async function dropStale(dir,from,to){

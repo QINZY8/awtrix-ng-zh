@@ -49,7 +49,7 @@ function viewDash(view){
   const briVal=el('span',{class:'val'},String(S.stats?S.stats.brightness:120));
   bri.addEventListener('input',()=>briVal.replaceChildren(bri.value));
   bri.addEventListener('input',debounce(()=>req('PATCH','/api/v1/settings',{brightness:Number(bri.value)}).catch(toastErr),300));
-  const autoLabel=FIELDS.autoBrightness.l;
+  const autoLabel=tx(FIELDS.autoBrightness.l);
   const autoSw=mkSwitch(false,async()=>{
     setAuto(autoSw.input.checked);
     try{await req('PATCH','/api/v1/settings',{autoBrightness:autoSw.input.checked});}

@@ -1,8 +1,8 @@
 function actionRow(label,help,ctls,key){
   return el('div',{class:'frow'},
     el('div',{class:'lab'},
-      el('div',{class:'l1'},el('b',null,label),key?el('span',{class:'key'},key):null),
-      help?el('div',{class:'help'},help):null),
+      el('div',{class:'l1'},el('b',null,tx(label)),key?el('span',{class:'key'},key):null),
+      help?el('div',{class:'help'},tx(help)):null),
     el('div',{class:'ctl'},ctls));
 }
 function progressRow(){

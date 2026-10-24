@@ -14,8 +14,10 @@ except NameError:
 
 # Firmware and Hub update controls share the embedded UI; allow their bounded growth.
 # Raised from 84 KB to 96 KB for the Chinese translation table (CJK costs 3 bytes/char);
-# upstream's stock figure is 92 KB.
-BUDGET = 96 * 1024
+# upstream's stock figure is 92 KB. Raised again to 104 KB when the fork moved from a
+# hand-written index.html to the upstream source tree: the assembled UI carries
+# upstream's newer features on top of the German and Chinese tables.
+BUDGET = 104 * 1024
 
 # Code that only the Linux runtime can use (awtrix-linux, TC002) sits in webui/index.html between
 # two marker lines, each alone on its line apart from indentation:
@@ -188,7 +190,8 @@ if env is not None:
     sys.path.insert(0, os.path.join(env["PROJECT_DIR"], "scripts"))
     SRC = os.path.join(env["PROJECT_DIR"], "webui", "index.html")
     OUT = os.path.join(env["PROJECT_DIR"], "src", "transport", "http", "WebUiAsset.h")
-    # Local fork: webui/index.html is maintained by hand (trilingual en|de|zh) instead of being
-    # assembled from webui/src/, so the upstream source-of-truth refresh is deliberately skipped.
-    # Re-enable refresh_source() after porting the translations into webui/src/.
+    # Local fork: webui/index.html is assembled from webui/src/ like upstream. The
+    # German and Chinese translations live in webui/src/shared/i18n-*.js, so the
+    # fork keeps following upstream without a hand-maintained HTML file.
+    refresh_source()
     build_webui_asset()

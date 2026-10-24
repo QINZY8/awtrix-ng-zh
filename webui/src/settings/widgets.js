@@ -43,7 +43,7 @@ const WIDGETS={
     const opts=(def.opt==='transitions'?S.transitions.map(n=>[n,n]):def.opt).slice();
     if(value!=null&&!opts.some(o=>String(o[0])===String(value)))
       opts.unshift([value,(def.fmt?def.fmt(value):String(value))+' - '+t('optStored')]);
-    const input=el('select',null,opts.map(([v,l])=>el('option',{value:String(v),selected:String(v)===String(value)},l)));
+    const input=el('select',null,opts.map(([v,l])=>el('option',{value:String(v),selected:String(v)===String(value)},tx(l))));
     input.addEventListener('change',onInput);
     ctl.append(input);
     const numeric=opts.length>0&&typeof opts[0][0]==='number';
@@ -61,7 +61,7 @@ const WIDGETS={
     const boxes=WEEKDAYS.map(([id,lbl])=>{
       const i=el('input',{type:'checkbox',checked:Array.isArray(value)&&value.includes(id)});
       if(onInput)i.addEventListener('change',onInput);
-      return{id,input:i,node:el('label',{class:'daybox'},i,el('span',null,lbl))};
+      return{id,input:i,node:el('label',{class:'daybox'},i,el('span',null,tx(lbl)))};
     });
     ctl.append(el('div',{class:'days'},...boxes.map(b=>b.node)));
     return{input:boxes[0].input,
@@ -72,9 +72,9 @@ const WIDGETS={
     const input=el('input',{type:'password',autocomplete:'new-password',
       placeholder:'(unchanged)'});
     input.addEventListener('input',onInput);
-    const eye=el('button',{type:'button',class:'wificaret','aria-label':'Show password','aria-pressed':'false'},icon('eye'));
+    const eye=el('button',{type:'button',class:'wificaret','aria-label':tx('Show password'),'aria-pressed':'false'},icon('eye'));
     const again=def.confirm?el('input',{type:'password',autocomplete:'new-password',
-      placeholder:'Repeat password','aria-label':'Repeat password'}):null;
+      placeholder:tx('Repeat password'),'aria-label':tx('Repeat password')}):null;
     const match=()=>!again||again.value===input.value;
     const mark=()=>{if(!again)return;again.style.display=input.value?'':'none';again.classList.toggle('pwbad',!!again.value&&!match());};
     const show=on=>{input.type=on?'text':'password';if(again)again.type=input.type;eye.classList.toggle('on',on);eye.setAttribute('aria-pressed',String(on));};
@@ -272,7 +272,7 @@ function settingsPage(view,saveFn,afterSave){
   }
   saveBtn.addEventListener('click',async()=>{
     const bad=allFields.find(f=>f.dirty()&&!f.ok());
-    if(bad){toast('Passwords do not match.',false);bad.row.scrollIntoView({block:'center'});return;}
+    if(bad){toast(tx('Passwords do not match.'),false);bad.row.scrollIntoView({block:'center'});return;}
     const payload={};
     allFields.filter(f=>f.dirty()).forEach(f=>{
       payload[f.key]=f.get();

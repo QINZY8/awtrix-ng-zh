@@ -130,7 +130,7 @@ function paintPinUse(fields){
   const by=new Map();
   PINKEYS.forEach(k=>{
     const f=fields[k];if(!f)return;
-    const v=f.get();if(v>=0&&!by.has(v))by.set(v,SYSF[k].l);
+    const v=f.get();if(v>=0&&!by.has(v))by.set(v,tx(SYSF[k].l));
   });
   PINKEYS.forEach(k=>{
     const f=fields[k],sel=f&&f.row.querySelector('select');if(!sel)return;
@@ -155,5 +155,5 @@ function paintPanelSize(fields,out){
   out.replaceChildren(bad||w+' × 8 = '+(w*8)+' '+t('pnLeds')+' · '+
     (n>1?n+' '+t('pnPanelsOf')+' '+pw+' × 8':t('pnOne')));
   if(d.restartRequired)out.append(el('div',null,
-    'Active: '+d.width+' × '+d.height+' · '+t('rebootreq')));
+    tx('Active: ')+d.width+' × '+d.height+' · '+t('rebootreq')));
 }
