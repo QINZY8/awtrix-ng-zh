@@ -50,7 +50,7 @@ struct DeviceConfig : PlatformConfig {
   int panels = 1;
   mutable bool persistencePending = false;
   PanelStart panelStart = PanelStart::TopLeft;
-  Wiring panelWiring = Wiring::Rows;
+  Wiring panelWiring = Wiring::Columns;
   PanelColorOrder panelColorOrder = PanelColorOrder::Grb;
   bool panelSerpentine = true;
   bool panelChainReverse = false, panelChainSerpentine = false;
