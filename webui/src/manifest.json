@@ -36,6 +36,7 @@
   "palettes.js",
   "log.js",
   "fullscreen.js",
+  "system/activation.js",
   "startup.js",
   "shell/end.html"
 ]

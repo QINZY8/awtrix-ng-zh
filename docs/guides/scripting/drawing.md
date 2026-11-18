@@ -150,7 +150,8 @@ unknown name keeps the current font. Which `y` lines up a font with the apps is 
 ## Text that may not fit {#styled-and-scrolling-text}
 
 `scroll_text()` draws a line that moves by itself when it is too long, the way a pushed app's text
-does. It returns how many times the text has run through.
+does. It returns how many times the text has run through. Text that stands still never runs through,
+so the count stays 0.
 
 | Call | Does |
 |---|---|
@@ -276,6 +277,17 @@ end
 
 return News()
 ```
+
+### Wait for one run {#when-the-text-changes}
+
+Text stands still when its lit pixels fit, unless `whenFits` is `"scroll"`, and always when the mode
+is `"static"`, which the clock's own scroll settings can choose too. So before you wait for the count,
+pass `{"mode": "wrap"}` and compare `text_ink_width()` with the width. Nothing is drawn while the
+display is off, so give the wait a time limit as well.
+
+A new text with another width in pixels starts over, and the count goes back to 0. A new text of
+exactly the same width carries on from the same position and keeps the count. So to wait for one
+run of each new text, remember the count when the text changes, and compare with that.
 
 ### How the text moves {#scroll-options}
 
@@ -515,6 +527,38 @@ return Calm()
 For text, icon and chart areas that AWTRIX lays out for you, see [Layouts](../layouts.md).
 <!-- /only -->
 
+### The effects this clock has
+
+`effects()` returns the names of the effects as a list, and `overlays()` the names of the
+overlays. The names and their order are the same as in `GET /api/v1/capabilities`. Both work in
+every method, so read them once in `init()`.
+
+This app shows a random effect each time it comes into the rotation:
+
+```berry
+import math
+
+class Shuffle
+  var names
+  var pick
+
+  def init()
+    self.names = effects()
+    self.pick = self.names[0]
+  end
+
+  def on_show()
+    self.pick = self.names[math.rand() % self.names.size()]
+  end
+
+  def draw()
+    effect(self.pick)
+  end
+end
+
+return Shuffle()
+```
+
 ## Good to know
 
 - **The font resets every frame.** Call `font()` in `draw()`, not in `setup()`.
@@ -529,7 +573,7 @@ For text, icon and chart areas that AWTRIX lays out for you, see [Layouts](../la
 ## Details {#panel-and-drawing}
 
 Every drawing call. They work only in `draw()`. Anywhere else they do nothing and raise no
-error. `width()`, `height()` and the measuring calls work in every hook.
+error. `width()`, `height()`, `effects()`, `overlays()` and the measuring calls work in every hook.
 
 | Call | Does | Example |
 |---|---|---|
@@ -555,6 +599,8 @@ error. `width()`, `height()` and the measuring calls work in every hook.
 | `progress(pct, color?, bg?, x0?)` | a progress bar in the bottom row, 0–100 | `progress(64)` |
 | `effect(name, settings?)` | animated background | `effect("Plasma", self.fx)` |
 | `overlay(name, settings?)` | weather overlay, drawn on top | `overlay("snow")` |
+| `effects()` | the names of the effects, as a list | `self.names = effects()` |
+| `overlays()` | the names of the overlays, as a list | `self.names = overlays()` |
 | `rgb(r, g, b)` | a color from red, green, blue (0–255 each) | `pixel(0, 0, rgb(255, 128, 0))` |
 | `hsv(h, s, v)` | a color from hue (0–360), saturation and brightness (0–100) | `hsv(second() * 6, 100, 100)` |
 
